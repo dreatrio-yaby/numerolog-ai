@@ -35,8 +35,8 @@ class User(BaseModel):
     """User model."""
 
     telegram_id: int
-    name: str
-    birth_date: date
+    name: Optional[str] = None
+    birth_date: Optional[date] = None
     language: Language = Language.RU
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -95,6 +95,10 @@ class User(BaseModel):
         if self.subscription_type == SubscriptionType.PRO and self.is_premium():
             return True
         return report_type in self.purchased_reports
+
+    def is_onboarded(self) -> bool:
+        """Check if user has completed onboarding (has name and birth_date)."""
+        return self.name is not None and self.birth_date is not None
 
 
 class NumerologyProfile(BaseModel):

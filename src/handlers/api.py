@@ -93,33 +93,22 @@ async def handle_get_user(telegram_id: int) -> dict:
     if not user:
         return error_response(404, "User not found")
 
-    # Calculate numerology profile
-    profile = get_full_profile(user.name, user.birth_date)
+    is_onboarded = user.is_onboarded()
 
     # Build referral link
     bot_username = "numerolog_ai_bot"  # TODO: get from bot info
     referral_link = f"https://t.me/{bot_username}?start=ref_{user.referral_code}"
 
+    # Base response data (always available)
     response_data = {
+        "is_onboarded": is_onboarded,
         "user": {
             "name": user.name,
-            "birth_date": user.birth_date.isoformat(),
+            "birth_date": user.birth_date.isoformat() if user.birth_date else None,
             "language": user.language.value,
             "notifications_enabled": user.notifications_enabled,
             "notification_time": user.notification_time,
             "created_at": user.created_at.isoformat(),
-        },
-        "numerology": {
-            "life_path": profile.life_path,
-            "soul_number": profile.soul_number,
-            "expression_number": profile.expression_number,
-            "personality_number": profile.personality_number,
-            "birthday_number": profile.birthday_number,
-            "maturity_number": profile.maturity_number,
-            "personal_year": profile.personal_year,
-            "personal_month": profile.personal_month,
-            "personal_day": profile.personal_day,
-            "matrix": profile.matrix,
         },
         "subscription": {
             "type": user.subscription_type.value,
@@ -143,6 +132,25 @@ async def handle_get_user(telegram_id: int) -> dict:
             "compatibility_limit": 2,
         },
     }
+
+    # Add numerology data only if onboarded (has name and birth_date)
+    if is_onboarded:
+        profile = get_full_profile(user.name, user.birth_date)
+        response_data["numerology"] = {
+            "life_path": profile.life_path,
+            "soul_number": profile.soul_number,
+            "expression_number": profile.expression_number,
+            "personality_number": profile.personality_number,
+            "birthday_number": profile.birthday_number,
+            "maturity_number": profile.maturity_number,
+            "personal_year": profile.personal_year,
+            "personal_month": profile.personal_month,
+            "personal_day": profile.personal_day,
+            "matrix": profile.matrix,
+        }
+    else:
+        # Placeholder numerology data for non-onboarded users
+        response_data["numerology"] = None
 
     return cors_response(200, response_data)
 

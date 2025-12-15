@@ -59,5 +59,7 @@
 
     "error_loading": "Failed to load data",
     "error_saving": "Failed to save",
-    "error_purchase": "Failed to create invoice"
+    "error_purchase": "Failed to create invoice",
+
+    "complete_onboarding": "Enter your name and birth date in the bot chat"
 }

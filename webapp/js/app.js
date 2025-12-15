@@ -151,11 +151,67 @@ const App = {
             this.userData = await API.getUser();
             this.lang = this.userData.user.language;
             this.applyTranslations();
-            this.renderUserData();
+
+            if (this.userData.is_onboarded) {
+                this.renderUserData();
+            } else {
+                this.renderNotOnboardedState();
+            }
         } catch (error) {
             console.error('Failed to load user data:', error);
+            // If user not found at all (shouldn't happen after fix), use Telegram language
+            const tgLang = TelegramApp.getLanguage();
+            this.lang = tgLang.startsWith('ru') ? 'ru' : 'en';
+            this.applyTranslations();
             TelegramApp.showAlert(this.t('error_loading'));
         }
+    },
+
+    /** Render state for users who haven't completed onboarding */
+    renderNotOnboardedState() {
+        // Profile tab - show placeholder with onboarding prompt
+        document.getElementById('profile-name').textContent = '-';
+        document.getElementById('profile-birthdate').textContent = '-';
+
+        // Numbers - show placeholder
+        document.getElementById('num-life-path').textContent = '-';
+        document.getElementById('num-soul').textContent = '-';
+        document.getElementById('num-expression').textContent = '-';
+        document.getElementById('num-personality').textContent = '-';
+
+        // Cycles
+        document.getElementById('cycle-year').textContent = '-';
+        document.getElementById('cycle-month').textContent = '-';
+        document.getElementById('cycle-day').textContent = '-';
+
+        // Matrix - show onboarding prompt
+        document.getElementById('matrix-grid').innerHTML =
+            `<p class="empty-state">${this.t('complete_onboarding')}</p>`;
+
+        // Settings - these work even without onboarding!
+        document.getElementById('setting-language').value = this.userData.user.language;
+        document.getElementById('setting-notifications').checked = this.userData.user.notifications_enabled;
+        document.getElementById('setting-notification-time').value = this.userData.user.notification_time;
+        this.updateNotificationTimeVisibility();
+
+        // Subscription - show current (FREE)
+        const badge = document.getElementById('current-plan');
+        badge.textContent = this.userData.subscription.type.toUpperCase();
+        badge.className = `plan-badge ${this.userData.subscription.type}`;
+        document.getElementById('plan-expires').textContent = '';
+
+        // Payments - empty
+        document.getElementById('payments-list').innerHTML =
+            `<p class="empty-state">${this.t('no_payments')}</p>`;
+
+        // Reports - show onboarding prompt
+        document.getElementById('reports-list').innerHTML =
+            `<p class="empty-state">${this.t('complete_onboarding')}</p>`;
+
+        // Referral - show data (referral link works even before onboarding)
+        document.getElementById('referral-count').textContent = this.userData.referral.referrals_count;
+        document.getElementById('bonus-questions').textContent = this.userData.referral.questions_bonus;
+        document.getElementById('referral-link').value = this.userData.referral.link;
     },
 
     /** Render user data to the UI */

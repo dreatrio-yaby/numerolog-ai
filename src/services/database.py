@@ -29,7 +29,7 @@ class DatabaseService:
             "PK": f"USER#{user.telegram_id}",
             "telegram_id": user.telegram_id,
             "name": user.name,
-            "birth_date": user.birth_date.isoformat(),
+            "birth_date": user.birth_date.isoformat() if user.birth_date else None,
             "language": user.language.value,
             "created_at": user.created_at.isoformat(),
             "subscription_type": user.subscription_type.value,
@@ -68,8 +68,12 @@ class DatabaseService:
         """Convert DynamoDB item to User model."""
         return User(
             telegram_id=item["telegram_id"],
-            name=item["name"],
-            birth_date=date.fromisoformat(item["birth_date"]),
+            name=item.get("name"),
+            birth_date=(
+                date.fromisoformat(item["birth_date"])
+                if item.get("birth_date")
+                else None
+            ),
             language=Language(item.get("language", "ru")),
             created_at=datetime.fromisoformat(item["created_at"]),
             subscription_type=SubscriptionType(item.get("subscription_type", "free")),
@@ -119,8 +123,8 @@ class DatabaseService:
     async def create_user(
         self,
         telegram_id: int,
-        name: str,
-        birth_date: date,
+        name: Optional[str] = None,
+        birth_date: Optional[date] = None,
         language: Language = Language.RU,
         referred_by: Optional[int] = None,
     ) -> User:

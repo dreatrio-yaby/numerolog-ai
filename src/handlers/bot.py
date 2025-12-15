@@ -190,17 +190,27 @@ async def cmd_start(message: Message, state: FSMContext):
     # Check if user exists
     user = await db.get_user(telegram_id)
 
-    if user:
-        # Existing user
+    if user and user.is_onboarded():
+        # Existing user with completed onboarding
         lang = user.language.value
         await message.answer(
             get_text("welcome_back", lang, name=user.name),
             reply_markup=get_main_keyboard(lang),
         )
     else:
-        # New user - start onboarding
+        # New user or incomplete onboarding - create/update user record
         lang = "ru" if message.from_user.language_code in ("ru", "uk", "be") else "en"
-        await state.update_data(language=lang, referrer_id=referrer_id)
+
+        if not user:
+            # Create user immediately with language preference
+            user = await db.create_user(
+                telegram_id=telegram_id,
+                language=Language(lang),
+                referred_by=referrer_id,
+            )
+
+        # Start onboarding FSM
+        await state.update_data(language=lang)
         await state.set_state(OnboardingStates.waiting_for_name)
         await message.answer(get_text("welcome", lang))
 
@@ -229,17 +239,25 @@ async def process_birthdate(message: Message, state: FSMContext):
         await message.answer(get_text("invalid_date", lang))
         return
 
-    # Create user
+    # Get existing user (created at /start) and update with name and birth_date
     name = data.get("name", "User")
-    referrer_id = data.get("referrer_id")
+    telegram_id = message.from_user.id
 
-    user = await db.create_user(
-        telegram_id=message.from_user.id,
-        name=name,
-        birth_date=birth_date,
-        language=Language(lang),
-        referred_by=referrer_id,
-    )
+    user = await db.get_user(telegram_id)
+    if user:
+        # Update existing user with onboarding data
+        user.name = name
+        user.birth_date = birth_date
+        user.language = Language(lang)
+        await db.update_user(user)
+    else:
+        # Fallback: create user if somehow doesn't exist
+        user = await db.create_user(
+            telegram_id=telegram_id,
+            name=name,
+            birth_date=birth_date,
+            language=Language(lang),
+        )
 
     await state.clear()
 
