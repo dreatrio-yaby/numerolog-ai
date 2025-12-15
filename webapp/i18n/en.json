@@ -56,6 +56,8 @@
     "share_text": "Try AI Numerologist! Discover your numbers 🔮",
     "settings_saved": "Settings saved!",
     "invoice_created": "Invoice created! Check your bot chat.",
+    "payment_success": "Payment successful!",
+    "payment_failed": "Payment failed. Please try again.",
 
     "error_loading": "Failed to load data",
     "error_saving": "Failed to save",

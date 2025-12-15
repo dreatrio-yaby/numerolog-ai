@@ -6,12 +6,27 @@ import json
 from typing import Any
 from urllib.parse import parse_qs, unquote
 
+from aiogram import Bot
+from aiogram.types import LabeledPrice
+
 from src.config import get_settings
 from src.models.user import Language
 from src.services.database import db
 from src.services.numerology import get_full_profile
 
 settings = get_settings()
+
+# Lazy-loaded Bot instance for invoice creation
+_bot: Bot | None = None
+
+
+def get_bot() -> Bot:
+    """Get or create Bot instance for API operations."""
+    global _bot
+    if _bot is None:
+        _bot = Bot(token=settings.telegram_bot_token)
+    return _bot
+
 
 # Available reports with prices
 AVAILABLE_REPORTS = [
@@ -227,7 +242,7 @@ async def handle_get_reports(telegram_id: int) -> dict:
 
 
 async def handle_create_invoice(telegram_id: int, body: dict) -> dict:
-    """Handle POST /api/invoice - create invoice for purchase."""
+    """Handle POST /api/invoice - create invoice link for purchase."""
     user = await db.get_user(telegram_id)
     if not user:
         return error_response(404, "User not found")
@@ -237,13 +252,23 @@ async def handle_create_invoice(telegram_id: int, body: dict) -> dict:
     if not product_type:
         return error_response(400, "Missing product type")
 
-    # Determine price and title
+    # Determine price, title and description
     if product_type == "subscription_lite":
         amount = settings.price_lite
         title = "LITE — 30 дней" if user.language == Language.RU else "LITE — 30 days"
+        description = (
+            "Безлимит вопросов и совместимости"
+            if user.language == Language.RU
+            else "Unlimited questions and compatibility"
+        )
     elif product_type == "subscription_pro":
         amount = settings.price_pro
         title = "PRO — 30 дней" if user.language == Language.RU else "PRO — 30 days"
+        description = (
+            "Безлимит + все премиум отчёты"
+            if user.language == Language.RU
+            else "Unlimited + all premium reports"
+        )
     elif product_type.startswith("report_"):
         report_id = product_type[7:]
         report = next((r for r in AVAILABLE_REPORTS if r["id"] == report_id), None)
@@ -251,20 +276,21 @@ async def handle_create_invoice(telegram_id: int, body: dict) -> dict:
             return error_response(400, "Unknown report type")
         amount = report["price"]
         title = report["name_ru"] if user.language == Language.RU else report["name_en"]
+        description = title
     else:
         return error_response(400, "Invalid product type")
 
-    # Return invoice data for Mini App to open
-    # Mini App will use tg.openInvoice() with this data
-    return cors_response(200, {
-        "invoice": {
-            "title": title,
-            "description": title,
-            "payload": product_type,
-            "currency": "XTR",
-            "amount": amount,
-        }
-    })
+    # Create invoice link using Bot API
+    bot = get_bot()
+    invoice_link = await bot.create_invoice_link(
+        title=title,
+        description=description,
+        payload=product_type,
+        currency="XTR",  # Telegram Stars
+        prices=[LabeledPrice(label=title, amount=amount)],
+    )
+
+    return cors_response(200, {"invoice_url": invoice_link})
 
 
 async def api_handler(event: dict) -> dict:

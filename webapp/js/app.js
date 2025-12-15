@@ -399,14 +399,23 @@ const App = {
 
         const data = await API.createInvoice(productType);
 
-        if (data.invoice) {
-            // For Telegram Stars, we need to use the bot to send invoice
-            // Show message to user
-            TelegramApp.showAlert(this.t('invoice_created'));
-            // Close Mini App and let bot handle invoice
-            setTimeout(() => {
-                TelegramApp.close();
-            }, 1500);
+        if (data.invoice_url) {
+            // Open invoice directly in Mini App
+            TelegramApp.openInvoice(data.invoice_url, async (status) => {
+                if (status === 'paid') {
+                    TelegramApp.hapticFeedback('success');
+                    TelegramApp.showAlert(this.t('payment_success'));
+                    // Reload user data to reflect new subscription/purchase
+                    await this.loadUserData();
+                } else if (status === 'failed') {
+                    TelegramApp.hapticFeedback('error');
+                    TelegramApp.showAlert(this.t('payment_failed'));
+                }
+                // 'cancelled' status - no action needed
+            });
+        } else {
+            TelegramApp.hapticFeedback('error');
+            TelegramApp.showAlert(this.t('error_purchase'));
         }
     },
 

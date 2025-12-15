@@ -90,6 +90,12 @@ const TelegramApp = {
     openInvoice(url, callback) {
         if (this.tg?.openInvoice) {
             this.tg.openInvoice(url, callback);
+        } else {
+            // Fallback: open link in browser
+            this.openLink(url);
+            if (callback) {
+                callback('failed');
+            }
         }
     },
 
