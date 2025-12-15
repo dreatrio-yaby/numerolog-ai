@@ -246,16 +246,25 @@ def get_buy_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
+async def cmd_start(message: Message, state: FSMContext, bot: Bot):
     """Handle /start command."""
     telegram_id = message.from_user.id
 
-    # Check for referral
+    # Check for deep link payload
+    payload = None
     referrer_id = None
     if message.text and len(message.text.split()) > 1:
-        ref_code = message.text.split()[1]
-        if ref_code.startswith("ref_") and ref_code[4:].isdigit():
-            referrer_id = int(ref_code[4:])
+        payload = message.text.split()[1]
+
+        # Handle report deep link
+        if payload.startswith("report_"):
+            report_id = payload[7:]  # Remove "report_" prefix
+            await handle_report_request(message, state, report_id, bot)
+            return
+
+        # Handle referral
+        if payload.startswith("ref_") and payload[4:].isdigit():
+            referrer_id = int(payload[4:])
 
     # Check if user exists
     user = await db.get_user(telegram_id)
@@ -714,6 +723,137 @@ REPORT_INFO = {
 }
 
 
+async def handle_report_request(message: Message, state: FSMContext, report_id: str, bot: Bot):
+    """Handle report request from deep link or callback."""
+    telegram_id = message.chat.id
+    user = await db.get_user(telegram_id)
+
+    if not user or not user.is_onboarded():
+        lang = user.language.value if user else "ru"
+        text = (
+            "Сначала пройди онбординг командой /start"
+            if lang == "ru"
+            else "Please complete onboarding with /start first"
+        )
+        await message.answer(text)
+        return
+
+    lang = user.language.value
+    is_pro = user.subscription_type.value == "pro" and user.is_premium()
+    has_report = report_id in user.purchased_reports
+    info = REPORT_INFO.get(report_id)
+
+    if not info:
+        await message.answer("Unknown report")
+        return
+
+    # 1. Already purchased - show existing report
+    if has_report:
+        existing = await db.get_report(telegram_id, report_id)
+        if existing:
+            title = info["name_ru"] if lang == "ru" else info["name_en"]
+            await message.answer(f"*📜 {title}*", parse_mode="Markdown")
+            parts = split_message(existing, 4000)
+            for part in parts:
+                await message.answer(part, parse_mode="Markdown")
+            return
+
+    # 2. PRO + no input needed - generate directly
+    if is_pro and not info.get("requires_input"):
+        thinking_text = "🔮 Генерирую отчёт..." if lang == "ru" else "🔮 Generating report..."
+        thinking_msg = await message.answer(thinking_text)
+
+        profile = get_full_profile(user.name, user.birth_date)
+
+        if report_id == "full_portrait":
+            content = await ai_service.generate_full_portrait_report(user, profile)
+        elif report_id == "financial_code":
+            content = await ai_service.generate_financial_code_report(user, profile)
+        elif report_id == "date_calendar":
+            content = await ai_service.generate_date_calendar_report(user, profile)
+        elif report_id == "year_forecast":
+            content = await ai_service.generate_year_forecast_report(user, profile)
+        else:
+            await thinking_msg.delete()
+            return
+
+        await db.save_report(telegram_id, report_id, content)
+        await db.add_purchased_report(user, report_id)
+        await thinking_msg.delete()
+
+        title = info["name_ru"] if lang == "ru" else info["name_en"]
+        await message.answer(f"*📜 {title}*", parse_mode="Markdown")
+        parts = split_message(content, 4000)
+        for part in parts:
+            await message.answer(part, parse_mode="Markdown")
+        return
+
+    # 3. Reports requiring input - start FSM
+    if info.get("requires_input"):
+        if report_id == "name_selection":
+            await state.set_state(ReportInputStates.waiting_for_name_purpose)
+            await state.update_data(report_id=report_id, is_pro=is_pro)
+
+            text = (
+                "📝 *Подбор имени*\n\nДля кого подбираем имя?"
+                if lang == "ru"
+                else "📝 *Name Selection*\n\nWho is the name for?"
+            )
+
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="👶 Для ребёнка" if lang == "ru" else "👶 For a child",
+                            callback_data="name_purpose_child",
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            text="💼 Для бизнеса" if lang == "ru" else "💼 For business",
+                            callback_data="name_purpose_business",
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            text=(
+                                "✏️ Для себя (ник)" if lang == "ru" else "✏️ For myself (nickname)"
+                            ),
+                            callback_data="name_purpose_self",
+                        )
+                    ],
+                ]
+            )
+            await message.answer(text, parse_mode="Markdown", reply_markup=keyboard)
+            return
+
+        elif report_id == "compatibility_pro":
+            await state.set_state(ReportInputStates.waiting_for_partner_name)
+            await state.update_data(report_id=report_id, is_pro=is_pro)
+
+            text = (
+                "💑 *Совместимость PRO*\n\nВведи имя партнёра:"
+                if lang == "ru"
+                else "💑 *Compatibility PRO*\n\nEnter partner's name:"
+            )
+
+            await message.answer(text, parse_mode="Markdown")
+            return
+
+    # 4. Not PRO, not purchased - send invoice
+    name = info["name_ru"] if lang == "ru" else info["name_en"]
+    desc = f"Премиум отчёт: {name}" if lang == "ru" else f"Premium report: {name}"
+
+    await bot.send_invoice(
+        chat_id=telegram_id,
+        title=name,
+        description=desc,
+        payload=f"report_{report_id}",
+        currency="XTR",
+        prices=[LabeledPrice(label=name, amount=info["price"])],
+    )
+
+
 @router.message(Command("report"))
 async def cmd_report(message: Message):
     """Show available reports for purchase."""
@@ -758,130 +898,10 @@ async def cmd_report(message: Message):
 
 @router.callback_query(F.data.startswith("report_"))
 async def callback_report(callback: CallbackQuery, state: FSMContext, bot: Bot):
-    """Handle report selection."""
-    telegram_id = callback.from_user.id
+    """Handle report selection from inline keyboard."""
     report_id = callback.data[7:]  # Remove "report_" prefix
-
-    user = await db.get_user(telegram_id)
-    if not user:
-        await callback.answer()
-        return
-
-    lang = user.language.value
-    is_pro = user.subscription_type.value == "pro" and user.is_premium()
-    has_report = report_id in user.purchased_reports
-    info = REPORT_INFO.get(report_id)
-
-    if not info:
-        await callback.answer("Unknown report")
-        return
-
-    # If already purchased, show existing report
-    if has_report:
-        existing = await db.get_report(telegram_id, report_id)
-        if existing:
-            title = info["name_ru"] if lang == "ru" else info["name_en"]
-            await callback.message.answer(f"*📜 {title}*", parse_mode="Markdown")
-            parts = split_message(existing, 4000)
-            for part in parts:
-                await callback.message.answer(part, parse_mode="Markdown")
-            await callback.answer()
-            return
-
-    # If PRO and report doesn't need input, generate directly
-    if is_pro and not info.get("requires_input"):
-        await callback.answer()
-        thinking_text = "🔮 Генерирую отчёт..." if lang == "ru" else "🔮 Generating report..."
-        thinking_msg = await callback.message.answer(thinking_text)
-
-        profile = get_full_profile(user.name, user.birth_date)
-
-        if report_id == "full_portrait":
-            content = await ai_service.generate_full_portrait_report(user, profile)
-        elif report_id == "financial_code":
-            content = await ai_service.generate_financial_code_report(user, profile)
-        elif report_id == "date_calendar":
-            content = await ai_service.generate_date_calendar_report(user, profile)
-        elif report_id == "year_forecast":
-            content = await ai_service.generate_year_forecast_report(user, profile)
-        else:
-            await thinking_msg.delete()
-            return
-
-        await db.save_report(telegram_id, report_id, content)
-        await db.add_purchased_report(user, report_id)
-        await thinking_msg.delete()
-
-        title = info["name_ru"] if lang == "ru" else info["name_en"]
-        await callback.message.answer(f"*📜 {title}*", parse_mode="Markdown")
-        parts = split_message(content, 4000)
-        for part in parts:
-            await callback.message.answer(part, parse_mode="Markdown")
-        return
-
-    # Reports that need input - start FSM
-    if info.get("requires_input"):
-        if report_id == "name_selection":
-            await state.set_state(ReportInputStates.waiting_for_name_purpose)
-            await state.update_data(report_id=report_id, is_pro=is_pro)
-
-            if lang == "ru":
-                text = "📝 *Подбор имени*\n\nДля кого подбираем имя?"
-            else:
-                text = "📝 *Name Selection*\n\nWho is the name for?"
-
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="👶 Для ребёнка" if lang == "ru" else "👶 For a child",
-                            callback_data="name_purpose_child",
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            text="💼 Для бизнеса" if lang == "ru" else "💼 For business",
-                            callback_data="name_purpose_business",
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            text="✏️ Для себя (ник)" if lang == "ru" else "✏️ For myself (nickname)",
-                            callback_data="name_purpose_self",
-                        )
-                    ],
-                ]
-            )
-            await callback.message.answer(text, parse_mode="Markdown", reply_markup=keyboard)
-            await callback.answer()
-            return
-
-        elif report_id == "compatibility_pro":
-            await state.set_state(ReportInputStates.waiting_for_partner_name)
-            await state.update_data(report_id=report_id, is_pro=is_pro)
-
-            if lang == "ru":
-                text = "💑 *Совместимость PRO*\n\nВведи имя партнёра:"
-            else:
-                text = "💑 *Compatibility PRO*\n\nEnter partner's name:"
-
-            await callback.message.answer(text, parse_mode="Markdown")
-            await callback.answer()
-            return
-
-    # Regular purchase - send invoice
     await callback.answer()
-    name = info["name_ru"] if lang == "ru" else info["name_en"]
-    desc = f"Премиум отчёт: {name}" if lang == "ru" else f"Premium report: {name}"
-
-    await bot.send_invoice(
-        chat_id=telegram_id,
-        title=name,
-        description=desc,
-        payload=f"report_{report_id}",
-        currency="XTR",
-        prices=[LabeledPrice(label=name, amount=info["price"])],
-    )
+    await handle_report_request(callback.message, state, report_id, bot)
 
 
 # Name selection FSM handlers

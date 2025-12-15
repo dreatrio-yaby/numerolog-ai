@@ -321,48 +321,42 @@ const App = {
             const name = this.lang === 'ru' ? r.name_ru : r.name_en;
             const desc = this.t(`report_desc_${r.id}`) || '';
             const requiresInput = r.requires_input !== null;
+            const isAccessible = r.status === 'purchased' || r.status === 'included_in_pro';
             let statusText = '';
             let statusClass = '';
-            let btnDisabled = false;
 
             if (r.status === 'purchased') {
                 statusText = this.t('report_purchased');
                 statusClass = 'purchased';
-                btnDisabled = true;
             } else if (r.status === 'included_in_pro') {
                 statusText = this.t('report_included');
                 statusClass = 'included';
-                // PRO users can still generate reports that need input
-                btnDisabled = !requiresInput;
             }
+
+            // Button text: "Открыть" for accessible, price for others
+            const btnText = isAccessible ? this.t('btn_open') : `${r.price}★`;
 
             return `
                 <div class="report-item">
                     <div class="report-info">
                         <span class="report-name">${name}</span>
                         ${desc ? `<span class="report-desc">${desc}</span>` : ''}
-                        ${requiresInput && !btnDisabled ? `<span class="report-note">${this.t('report_requires_input')}</span>` : ''}
+                        ${requiresInput && !isAccessible ? `<span class="report-note">${this.t('report_requires_input')}</span>` : ''}
                         ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
                     </div>
-                    <button class="report-btn" data-report="${r.id}" data-requires-input="${requiresInput}" ${btnDisabled ? 'disabled' : ''}>
-                        ${btnDisabled ? this.t('btn_available') : `${r.price}★`}
+                    <button class="report-btn" data-report="${r.id}">
+                        ${btnText}
                     </button>
                 </div>
             `;
         }).join('');
 
-        // Add click handlers for report buttons
-        list.querySelectorAll('.report-btn:not([disabled])').forEach(btn => {
+        // Add click handlers - all reports redirect to bot
+        list.querySelectorAll('.report-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const reportId = btn.getAttribute('data-report');
-                const requiresInput = btn.getAttribute('data-requires-input') === 'true';
-
-                if (requiresInput) {
-                    // Reports that need additional input must be purchased via bot
-                    TelegramApp.showAlert(this.t('report_go_to_bot'));
-                } else {
-                    this.handleBuy(`report_${reportId}`);
-                }
+                TelegramApp.openTelegramLink(`https://t.me/numerolog_ai_bot?start=report_${reportId}`);
+                TelegramApp.close();
             });
         });
     },

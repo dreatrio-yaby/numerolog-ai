@@ -51,7 +51,6 @@
     "report_desc_name_selection": "Name selection for child or business",
     "report_desc_compatibility_pro": "Deep compatibility analysis with partner",
     "report_requires_input": "Requires additional info",
-    "report_go_to_bot": "For this report, type /report in the bot chat",
 
     "referral_title": "Referral Program",
     "referral_desc": "Invite a friend and get +10 bonus questions!",
@@ -62,6 +61,7 @@
     "btn_share": "Share",
     "btn_save": "Save",
     "btn_available": "Available",
+    "btn_open": "Open",
 
     "link_copied": "Link copied!",
     "share_text": "Try AI Numerologist! Discover your numbers 🔮",
