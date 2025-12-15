@@ -319,6 +319,8 @@ const App = {
 
         list.innerHTML = data.reports.map(r => {
             const name = this.lang === 'ru' ? r.name_ru : r.name_en;
+            const desc = this.t(`report_desc_${r.id}`) || '';
+            const requiresInput = r.requires_input !== null;
             let statusText = '';
             let statusClass = '';
             let btnDisabled = false;
@@ -330,16 +332,19 @@ const App = {
             } else if (r.status === 'included_in_pro') {
                 statusText = this.t('report_included');
                 statusClass = 'included';
-                btnDisabled = true;
+                // PRO users can still generate reports that need input
+                btnDisabled = !requiresInput;
             }
 
             return `
                 <div class="report-item">
                     <div class="report-info">
                         <span class="report-name">${name}</span>
+                        ${desc ? `<span class="report-desc">${desc}</span>` : ''}
+                        ${requiresInput && !btnDisabled ? `<span class="report-note">${this.t('report_requires_input')}</span>` : ''}
                         ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
                     </div>
-                    <button class="report-btn" data-report="${r.id}" ${btnDisabled ? 'disabled' : ''}>
+                    <button class="report-btn" data-report="${r.id}" data-requires-input="${requiresInput}" ${btnDisabled ? 'disabled' : ''}>
                         ${btnDisabled ? this.t('btn_available') : `${r.price}★`}
                     </button>
                 </div>
@@ -350,7 +355,14 @@ const App = {
         list.querySelectorAll('.report-btn:not([disabled])').forEach(btn => {
             btn.addEventListener('click', () => {
                 const reportId = btn.getAttribute('data-report');
-                this.handleBuy(`report_${reportId}`);
+                const requiresInput = btn.getAttribute('data-requires-input') === 'true';
+
+                if (requiresInput) {
+                    // Reports that need additional input must be purchased via bot
+                    TelegramApp.showAlert(this.t('report_go_to_bot'));
+                } else {
+                    this.handleBuy(`report_${reportId}`);
+                }
             });
         });
     },
@@ -436,8 +448,11 @@ const App = {
             subscription_lite: 'LITE',
             subscription_pro: 'PRO',
             report_full_portrait: this.t('report_full_portrait'),
+            report_financial_code: this.t('report_financial_code'),
+            report_date_calendar: this.t('report_date_calendar'),
             report_year_forecast: this.t('report_year_forecast'),
-            report_compatibility_deep: this.t('report_compatibility_deep')
+            report_name_selection: this.t('report_name_selection'),
+            report_compatibility_pro: this.t('report_compatibility_pro')
         };
         return names[type] || type;
     }

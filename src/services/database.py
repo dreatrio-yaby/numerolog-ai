@@ -2,14 +2,13 @@
 
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Optional
 
 import boto3
 from boto3.dynamodb.conditions import Key
 
 from src.config import get_settings
-from src.models.user import Conversation, Language, Payment, Report, SubscriptionType, User
+from src.models.user import Language, Payment, SubscriptionType, User
 
 settings = get_settings()
 
@@ -43,9 +42,7 @@ class DatabaseService:
             "questions_bonus": user.questions_bonus,
             "compatibility_this_week": user.compatibility_this_week,
             "compatibility_week_reset": (
-                user.compatibility_week_reset.isoformat()
-                if user.compatibility_week_reset
-                else None
+                user.compatibility_week_reset.isoformat() if user.compatibility_week_reset else None
             ),
             "referral_code": user.referral_code,
             "referred_by": user.referred_by,
@@ -69,11 +66,7 @@ class DatabaseService:
         return User(
             telegram_id=item["telegram_id"],
             name=item.get("name"),
-            birth_date=(
-                date.fromisoformat(item["birth_date"])
-                if item.get("birth_date")
-                else None
-            ),
+            birth_date=(date.fromisoformat(item["birth_date"]) if item.get("birth_date") else None),
             language=Language(item.get("language", "ru")),
             created_at=datetime.fromisoformat(item["created_at"]),
             subscription_type=SubscriptionType(item.get("subscription_type", "free")),
@@ -172,9 +165,10 @@ class DatabaseService:
         today = date.today()
 
         # Reset counter if new week (Monday)
-        if user.compatibility_week_reset is None or (
-            today - user.compatibility_week_reset
-        ).days >= 7:
+        if (
+            user.compatibility_week_reset is None
+            or (today - user.compatibility_week_reset).days >= 7
+        ):
             user.compatibility_this_week = 0
             user.compatibility_week_reset = today
 
@@ -190,9 +184,7 @@ class DatabaseService:
         from datetime import timedelta
 
         user.subscription_type = subscription_type
-        user.subscription_expires = datetime.utcnow() + timedelta(
-            days=settings.subscription_days
-        )
+        user.subscription_expires = datetime.utcnow() + timedelta(days=settings.subscription_days)
         return await self.update_user(user)
 
     async def add_payment(
@@ -299,6 +291,54 @@ class DatabaseService:
         if item:
             return item["content"]
         return None
+
+    # Pending report data (for reports that need additional input before purchase)
+
+    async def save_pending_report_data(
+        self,
+        telegram_id: int,
+        report_id: str,
+        data: dict,
+    ) -> None:
+        """Save additional data needed for report generation (before payment)."""
+        self.reports_table.put_item(
+            Item={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"PENDING#{report_id}",
+                "data": data,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        )
+
+    async def get_pending_report_data(
+        self,
+        telegram_id: int,
+        report_id: str,
+    ) -> Optional[dict]:
+        """Get pending report data."""
+        response = self.reports_table.get_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"PENDING#{report_id}",
+            }
+        )
+        item = response.get("Item")
+        if item:
+            return item.get("data")
+        return None
+
+    async def delete_pending_report_data(
+        self,
+        telegram_id: int,
+        report_id: str,
+    ) -> None:
+        """Delete pending report data after generation."""
+        self.reports_table.delete_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"PENDING#{report_id}",
+            }
+        )
 
     # Users with notifications enabled (for daily forecasts)
 

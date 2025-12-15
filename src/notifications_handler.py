@@ -77,9 +77,7 @@ def handler(event: dict, context: Any) -> dict:
     current_hour = datetime.utcnow().hour
 
     # Send forecasts
-    sent_count = asyncio.get_event_loop().run_until_complete(
-        send_daily_forecasts(current_hour)
-    )
+    sent_count = asyncio.get_event_loop().run_until_complete(send_daily_forecasts(current_hour))
 
     logger.info(f"Sent {sent_count} daily forecasts for hour {current_hour}")
 

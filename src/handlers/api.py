@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 from typing import Any
-from urllib.parse import parse_qs, unquote
+from urllib.parse import unquote
 
 from aiogram import Bot
 from aiogram.types import LabeledPrice
@@ -30,9 +30,48 @@ def get_bot() -> Bot:
 
 # Available reports with prices
 AVAILABLE_REPORTS = [
-    {"id": "full_portrait", "name_ru": "Полный портрет", "name_en": "Full Portrait", "price": 100},
-    {"id": "year_forecast", "name_ru": "Прогноз на год", "name_en": "Year Forecast", "price": 100},
-    {"id": "compatibility_deep", "name_ru": "Глубокая совместимость", "name_en": "Deep Compatibility", "price": 150},
+    {
+        "id": "full_portrait",
+        "name_ru": "Полный портрет",
+        "name_en": "Full Portrait",
+        "price": 120,
+        "requires_input": None,
+    },
+    {
+        "id": "financial_code",
+        "name_ru": "Финансовый код",
+        "name_en": "Financial Code",
+        "price": 150,
+        "requires_input": None,
+    },
+    {
+        "id": "date_calendar",
+        "name_ru": "Календарь дат",
+        "name_en": "Date Calendar",
+        "price": 130,
+        "requires_input": None,
+    },
+    {
+        "id": "year_forecast",
+        "name_ru": "Прогноз на год",
+        "name_en": "Year Forecast",
+        "price": 150,
+        "requires_input": None,
+    },
+    {
+        "id": "name_selection",
+        "name_ru": "Подбор имени",
+        "name_en": "Name Selection",
+        "price": 140,
+        "requires_input": "name_context",
+    },
+    {
+        "id": "compatibility_pro",
+        "name_ru": "Совместимость PRO",
+        "name_en": "Compatibility PRO",
+        "price": 150,
+        "requires_input": "partner_data",
+    },
 ]
 
 
@@ -51,9 +90,7 @@ def validate_init_data(init_data: str) -> dict | None:
         return None
 
     # Build data check string (sorted alphabetically)
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(parsed.items())
-    )
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
 
     # Calculate secret key
     secret_key = hmac.new(
@@ -184,7 +221,12 @@ async def handle_update_settings(telegram_id: int, body: dict) -> dict:
     if "notification_time" in body:
         time_str = body["notification_time"]
         # Validate HH:MM format
-        if len(time_str) == 5 and time_str[2] == ":" and time_str[:2].isdigit() and time_str[3:].isdigit():
+        if (
+            len(time_str) == 5
+            and time_str[2] == ":"
+            and time_str[:2].isdigit()
+            and time_str[3:].isdigit()
+        ):
             hour = int(time_str[:2])
             minute = int(time_str[3:])
             if 0 <= hour <= 23 and 0 <= minute <= 59:
@@ -230,13 +272,16 @@ async def handle_get_reports(telegram_id: int) -> dict:
         elif is_pro:
             status = "included_in_pro"
 
-        reports.append({
-            "id": report["id"],
-            "name_ru": report["name_ru"],
-            "name_en": report["name_en"],
-            "price": report["price"],
-            "status": status,
-        })
+        reports.append(
+            {
+                "id": report["id"],
+                "name_ru": report["name_ru"],
+                "name_en": report["name_en"],
+                "price": report["price"],
+                "status": status,
+                "requires_input": report["requires_input"],
+            }
+        )
 
     return cors_response(200, {"reports": reports})
 

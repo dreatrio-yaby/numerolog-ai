@@ -480,6 +480,18 @@ body {
     font-weight: 500;
 }
 
+.report-desc {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
+    margin-top: 2px;
+}
+
+.report-note {
+    font-size: 11px;
+    color: #e67e22;
+    margin-top: 2px;
+}
+
 .report-status {
     font-size: 12px;
 }
