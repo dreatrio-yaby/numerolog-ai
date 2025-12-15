@@ -23,10 +23,8 @@ ruff format src/
 pytest
 pytest tests/test_file.py::test_name -v  # single test
 
-# Deploy to AWS (via GitHub Actions - automatic on push to main)
-# Manual deploy:
-./scripts/deploy.sh
-./scripts/set_webhook.sh
+# Deploy to AWS - ONLY via GitHub Actions (automatic on push to main)
+# DO NOT use manual deploy scripts
 ```
 
 ## Deployment

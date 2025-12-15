@@ -298,16 +298,16 @@ async def api_handler(event: dict) -> dict:
     if event.get("body"):
         body = json.loads(event["body"])
 
-    # Route requests
-    if path == "/api/user" and method == "GET":
+    # Route requests (use endswith to handle stage prefix like /prod/api/...)
+    if path.endswith("/api/user") and method == "GET":
         return await handle_get_user(telegram_id)
-    elif path == "/api/user/settings" and method == "PUT":
+    elif path.endswith("/api/user/settings") and method == "PUT":
         return await handle_update_settings(telegram_id, body)
-    elif path == "/api/payments" and method == "GET":
+    elif path.endswith("/api/payments") and method == "GET":
         return await handle_get_payments(telegram_id)
-    elif path == "/api/reports" and method == "GET":
+    elif path.endswith("/api/reports") and method == "GET":
         return await handle_get_reports(telegram_id)
-    elif path == "/api/invoice" and method == "POST":
+    elif path.endswith("/api/invoice") and method == "POST":
         return await handle_create_invoice(telegram_id, body)
     else:
         return error_response(404, "Not found")
