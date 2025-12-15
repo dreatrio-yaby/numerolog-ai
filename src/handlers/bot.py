@@ -195,11 +195,13 @@ async def cmd_start(message: Message, state: FSMContext):
             reply_markup=get_main_keyboard(lang),
         )
     else:
-        # New user or incomplete onboarding - create/update user record
-        lang = "ru" if message.from_user.language_code in ("ru", "uk", "be") else "en"
-
-        if not user:
-            # Create user immediately with language preference
+        # New user or incomplete onboarding
+        if user:
+            # Existing user - use their stored language preference
+            lang = user.language.value
+        else:
+            # New user - detect from Telegram and create
+            lang = "ru" if message.from_user.language_code in ("ru", "uk", "be") else "en"
             user = await db.create_user(
                 telegram_id=telegram_id,
                 language=Language(lang),
