@@ -144,7 +144,7 @@ async def handle_get_user(telegram_id: int) -> dict:
     is_onboarded = user.is_onboarded()
 
     # Build referral link
-    bot_username = "numerolog_ai_bot"  # TODO: get from bot info
+    bot_username = "NumeroChatBot"
     referral_link = f"https://t.me/{bot_username}?start=ref_{user.referral_code}"
 
     # Base response data (always available)

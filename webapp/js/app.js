@@ -355,7 +355,7 @@ const App = {
         list.querySelectorAll('.report-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const reportId = btn.getAttribute('data-report');
-                TelegramApp.openTelegramLink(`https://t.me/numerolog_ai_bot?start=report_${reportId}`);
+                TelegramApp.openTelegramLink(`https://t.me/NumeroChatBot?start=report_${reportId}`);
                 TelegramApp.close();
             });
         });
