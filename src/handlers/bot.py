@@ -605,6 +605,12 @@ async def process_successful_payment(message: Message):
         plan_name = "PRO"
     elif payload.startswith("report_"):
         report_id = payload[7:]
+
+        # Check if already generating (prevent duplicates from webhook retries)
+        if await db.is_report_generating(telegram_id, report_id):
+            return
+        await db.set_report_generating(telegram_id, report_id)
+
         await db.add_purchased_report(user, report_id)
 
         # Send "generating" message
@@ -638,6 +644,7 @@ async def process_successful_payment(message: Message):
             await db.delete_pending_report_data(telegram_id, report_id)
         else:
             await thinking_msg.delete()
+            await db.clear_report_generating(telegram_id, report_id)
             error_text = (
                 "❌ Ошибка генерации отчёта" if lang == "ru" else "❌ Report generation error"
             )
@@ -646,6 +653,7 @@ async def process_successful_payment(message: Message):
 
         # Save report to database
         await db.save_report(telegram_id, report_id, content)
+        await db.clear_report_generating(telegram_id, report_id)
 
         # Delete thinking message
         await thinking_msg.delete()
@@ -760,6 +768,11 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
 
     # 2. PRO + no input needed - generate directly
     if is_pro and not info.get("requires_input"):
+        # Check if already generating (prevent duplicates from webhook retries)
+        if await db.is_report_generating(telegram_id, report_id):
+            return
+        await db.set_report_generating(telegram_id, report_id)
+
         thinking_text = "🔮 Генерирую отчёт..." if lang == "ru" else "🔮 Generating report..."
         thinking_msg = await message.answer(thinking_text)
 
@@ -775,10 +788,12 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
             content = await ai_service.generate_year_forecast_report(user, profile)
         else:
             await thinking_msg.delete()
+            await db.clear_report_generating(telegram_id, report_id)
             return
 
         await db.save_report(telegram_id, report_id, content)
         await db.add_purchased_report(user, report_id)
+        await db.clear_report_generating(telegram_id, report_id)
         await thinking_msg.delete()
 
         title = info["name_ru"] if lang == "ru" else info["name_en"]
@@ -981,6 +996,11 @@ async def finalize_name_selection(
     await state.clear()
 
     if is_pro:
+        # Check if already generating (prevent duplicates from webhook retries)
+        if await db.is_report_generating(telegram_id, "name_selection"):
+            return
+        await db.set_report_generating(telegram_id, "name_selection")
+
         # Generate directly for PRO users
         thinking_text = "🔮 Генерирую отчёт..." if lang == "ru" else "🔮 Generating report..."
         thinking_msg = await callback.message.answer(thinking_text)
@@ -991,6 +1011,7 @@ async def finalize_name_selection(
         await db.save_report(telegram_id, "name_selection", content)
         await db.add_purchased_report(user, "name_selection")
         await db.delete_pending_report_data(telegram_id, "name_selection")
+        await db.clear_report_generating(telegram_id, "name_selection")
         await thinking_msg.delete()
 
         title = "📝 ПОДБОР ИМЕНИ" if lang == "ru" else "📝 NAME SELECTION"
@@ -1072,6 +1093,11 @@ async def process_partner_birthdate(message: Message, state: FSMContext, bot: Bo
     await state.clear()
 
     if is_pro:
+        # Check if already generating (prevent duplicates from webhook retries)
+        if await db.is_report_generating(telegram_id, "compatibility_pro"):
+            return
+        await db.set_report_generating(telegram_id, "compatibility_pro")
+
         # Generate directly for PRO users
         thinking_text = "🔮 Генерирую отчёт..." if lang == "ru" else "🔮 Generating report..."
         thinking_msg = await message.answer(thinking_text)
@@ -1082,6 +1108,7 @@ async def process_partner_birthdate(message: Message, state: FSMContext, bot: Bo
         await db.save_report(telegram_id, "compatibility_pro", content)
         await db.add_purchased_report(user, "compatibility_pro")
         await db.delete_pending_report_data(telegram_id, "compatibility_pro")
+        await db.clear_report_generating(telegram_id, "compatibility_pro")
         await thinking_msg.delete()
 
         title = "💑 СОВМЕСТИМОСТЬ PRO" if lang == "ru" else "💑 COMPATIBILITY PRO"

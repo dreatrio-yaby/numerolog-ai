@@ -340,6 +340,45 @@ class DatabaseService:
             }
         )
 
+    # Report generation lock (to prevent duplicate processing)
+
+    async def is_report_generating(self, telegram_id: int, report_id: str) -> bool:
+        """Check if report is currently being generated."""
+        response = self.reports_table.get_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"LOCK#{report_id}",
+            }
+        )
+        item = response.get("Item")
+        if item:
+            # Check if lock is stale (older than 2 minutes)
+            created_at = datetime.fromisoformat(item["created_at"])
+            if (datetime.utcnow() - created_at).total_seconds() > 120:
+                await self.clear_report_generating(telegram_id, report_id)
+                return False
+            return True
+        return False
+
+    async def set_report_generating(self, telegram_id: int, report_id: str) -> None:
+        """Set lock indicating report is being generated."""
+        self.reports_table.put_item(
+            Item={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"LOCK#{report_id}",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        )
+
+    async def clear_report_generating(self, telegram_id: int, report_id: str) -> None:
+        """Clear the generation lock."""
+        self.reports_table.delete_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"LOCK#{report_id}",
+            }
+        )
+
     # Users with notifications enabled (for daily forecasts)
 
     async def get_users_for_notifications(self, hour: int) -> list[User]:
