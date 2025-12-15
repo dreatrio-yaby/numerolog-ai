@@ -31,9 +31,9 @@ class Settings(BaseSettings):
     free_compatibility_per_week: int = 2
 
     # Pricing (Telegram Stars)
-    price_lite: int = 175  # ~350 RUB
-    price_pro: int = 500  # ~1000 RUB
-    price_report: int = 100  # ~200 RUB
+    price_lite: int = 175
+    price_pro: int = 500
+    price_report: int = 100
     subscription_days: int = 30
 
     # Referral

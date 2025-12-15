@@ -168,13 +168,13 @@ def get_buy_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
         buttons = [
             [
                 InlineKeyboardButton(
-                    text=f"⭐ LITE — {settings.price_lite}★ (~350₽)",
+                    text=f"⭐ LITE — {settings.price_lite}★",
                     callback_data="buy_lite",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text=f"💎 PRO — {settings.price_pro}★ (~1000₽)",
+                    text=f"💎 PRO — {settings.price_pro}★",
                     callback_data="buy_pro",
                 )
             ],
@@ -440,11 +440,11 @@ async def cmd_buy(event: Message | CallbackQuery):
 • 2 проверки совместимости в неделю
 • Базовый портрет
 
-*LITE* — 175★ (~350₽) на 30 дней
+*LITE* — 175★ на 30 дней
 • Безлимит вопросов
 • Безлимит совместимости
 
-*PRO* — 500★ (~1000₽) на 30 дней
+*PRO* — 500★ на 30 дней
 • Всё из LITE
 • Все премиум отчёты включены
   - Полный портрет
