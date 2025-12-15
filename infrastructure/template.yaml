@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Numerolog AI - Telegram Bot with AI-powered numerology
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - dev
+      - prod
+  TelegramBotToken:
+    Type: String
+    NoEcho: true
+    Description: Telegram Bot API Token
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API Key
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.11
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+        OPENAI_API_KEY: !Ref OpenAIApiKey
+        DYNAMODB_TABLE_USERS: !Ref UsersTable
+        DYNAMODB_TABLE_CONVERSATIONS: !Ref ConversationsTable
+        DYNAMODB_TABLE_REPORTS: !Ref ReportsTable
+        AWS_REGION_NAME: !Ref AWS::Region
+
+Resources:
+  # Lambda Function - Webhook Handler
+  WebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub numerolog-webhook-${Environment}
+      CodeUri: ../
+      Handler: src.lambda_handler.handler
+      Description: Handles Telegram webhook updates
+      Events:
+        Webhook:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /webhook
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConversationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReportsTable
+
+  # Lambda Function - Daily Notifications
+  NotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub numerolog-notifications-${Environment}
+      CodeUri: ../
+      Handler: src.notifications_handler.handler
+      Description: Sends daily numerology forecasts
+      Timeout: 300
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 * * * ? *)  # Every hour
+            Description: Check and send hourly notifications
+            Enabled: true
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConversationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReportsTable
+
+  # HTTP API Gateway
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      Description: API Gateway for Telegram webhook
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - POST
+
+  # DynamoDB Tables
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub numerolog-users-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub numerolog-conversations-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub numerolog-reports-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  WebhookUrl:
+    Description: Telegram Webhook URL
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/webhook"
+
+  WebhookFunctionArn:
+    Description: Webhook Lambda Function ARN
+    Value: !GetAtt WebhookFunction.Arn
+
+  NotificationsFunctionArn:
+    Description: Notifications Lambda Function ARN
+    Value: !GetAtt NotificationsFunction.Arn
+
+  UsersTableName:
+    Description: DynamoDB Users Table Name
+    Value: !Ref UsersTable
+
+  ConversationsTableName:
+    Description: DynamoDB Conversations Table Name
+    Value: !Ref ConversationsTable
+
+  ReportsTableName:
+    Description: DynamoDB Reports Table Name
+    Value: !Ref ReportsTable
