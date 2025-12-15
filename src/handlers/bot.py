@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -565,8 +565,8 @@ async def callback_menu(callback: CallbackQuery):
 
 
 # Default message handler - questions to AI
-@router.message(F.text)
-async def handle_question(message: Message):
+@router.message(F.text, StateFilter(None))
+async def handle_question(message: Message, state: FSMContext):
     """Handle user questions."""
     telegram_id = message.from_user.id
     user = await db.get_user(telegram_id)
