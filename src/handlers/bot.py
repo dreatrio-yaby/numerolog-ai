@@ -50,7 +50,14 @@ class CompatibilityStates(StatesGroup):
 TEXTS = {
     "ru": {
         "welcome": "✨ Привет! Я AI-нумеролог.\n\nДавай узнаем твои числа? Для начала скажи, как тебя зовут:",
-        "welcome_back": "✨ С возвращением, {name}!\n\nЧто хочешь узнать сегодня?",
+        "welcome_back": """✨ С возвращением, {name}!
+
+💬 Спроси меня о чём угодно:
+• «Повезёт ли мне сегодня в любви?»
+• «Когда лучше просить повышение?»
+• «Как улучшить здоровье по моим числам?»
+
+Или выбери из меню:""",
         "ask_birthdate": "Отлично, {name}! 🎉\n\nТеперь введи свою дату рождения в формате ДД.ММ.ГГГГ\n(например: 15.03.1990)",
         "invalid_date": "🤔 Не могу разобрать дату. Введи в формате ДД.ММ.ГГГГ (например: 15.03.1990)",
         "profile_created": "🔮 Отлично! Твой профиль создан.\n\nСейчас расскажу о твоих числах...",
@@ -74,10 +81,25 @@ TEXTS = {
 *Просто напиши вопрос* — и я отвечу с учётом твоих чисел!""",
         "invite": "👋 Пригласи друга и получи +10 вопросов + 1 премиум отчёт!\n\nТвоя ссылка:\n{link}",
         "settings": "⚙️ *Настройки*\n\nЯзык: {lang}\nУведомления: {notifications}\nВремя уведомлений: {time}",
+        "profile_created_hint": """💡 Ты можешь задавать мне любые вопросы!
+
+• «Какая работа мне подходит?»
+• «Как наладить отношения?»
+• «Что ждёт меня в финансах?»
+• «Когда лучше заняться здоровьем?»
+
+Я отвечу с учётом твоих чисел ✨""",
     },
     "en": {
         "welcome": "✨ Hi! I'm an AI Numerologist.\n\nLet's discover your numbers! First, what's your name?",
-        "welcome_back": "✨ Welcome back, {name}!\n\nWhat would you like to know today?",
+        "welcome_back": """✨ Welcome back, {name}!
+
+💬 Ask me anything:
+• "Will I be lucky in love today?"
+• "When should I ask for a raise?"
+• "How to improve health based on my numbers?"
+
+Or choose from menu:""",
         "ask_birthdate": "Great, {name}! 🎉\n\nNow enter your birth date in DD.MM.YYYY format\n(e.g., 15.03.1990)",
         "invalid_date": "🤔 Can't parse the date. Use DD.MM.YYYY format (e.g., 15.03.1990)",
         "profile_created": "🔮 Great! Your profile is created.\n\nLet me tell you about your numbers...",
@@ -101,6 +123,14 @@ TEXTS = {
 *Just write a question* — and I'll answer based on your numbers!""",
         "invite": "👋 Invite a friend and get +10 questions + 1 premium report!\n\nYour link:\n{link}",
         "settings": "⚙️ *Settings*\n\nLanguage: {lang}\nNotifications: {notifications}\nNotification time: {time}",
+        "profile_created_hint": """💡 You can ask me any questions!
+
+• "What job suits me?"
+• "How to improve relationships?"
+• "What awaits me in finances?"
+• "When to focus on health?"
+
+I'll answer based on your numbers ✨""",
     },
 }
 
@@ -270,6 +300,9 @@ async def process_birthdate(message: Message, state: FSMContext):
 
     await thinking_msg.delete()
     await message.answer(interpretation, reply_markup=get_main_keyboard(lang))
+
+    # Show hint about free-form questions
+    await message.answer(get_text("profile_created_hint", lang))
 
 
 @router.message(Command("profile"))
