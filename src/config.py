@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Limits
-    free_questions_per_day: int = 3
+    free_questions_per_day: int = 10
     free_compatibility_per_week: int = 2
 
     # Pricing (Telegram Stars)
