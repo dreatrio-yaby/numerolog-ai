@@ -36,32 +36,24 @@ def handler(event: dict, context: Any) -> dict:
     """
     logger.info(f"Received event: {json.dumps(event)}")
 
-    try:
-        # Parse request body
-        if "body" in event:
-            body = event["body"]
-            if isinstance(body, str):
-                body = json.loads(body)
-        else:
-            body = event
+    # Parse request body
+    if "body" in event:
+        body = event["body"]
+        if isinstance(body, str):
+            body = json.loads(body)
+    else:
+        body = event
 
-        # Create Update object
-        update = Update.model_validate(body, context={"bot": bot})
+    # Create Update object
+    update = Update.model_validate(body, context={"bot": bot})
 
-        # Process update
-        asyncio.get_event_loop().run_until_complete(dp.feed_update(bot, update))
+    # Process update
+    asyncio.get_event_loop().run_until_complete(dp.feed_update(bot, update))
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"ok": True}),
-        }
-
-    except Exception as e:
-        logger.error(f"Error processing update: {e}", exc_info=True)
-        return {
-            "statusCode": 200,  # Return 200 to Telegram to avoid retries
-            "body": json.dumps({"ok": False, "error": str(e)}),
-        }
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"ok": True}),
+    }
 
 
 async def set_webhook(url: str) -> bool:

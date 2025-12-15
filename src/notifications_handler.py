@@ -37,30 +37,25 @@ async def send_daily_forecasts(hour: int) -> int:
     sent_count = 0
 
     for user in users:
-        try:
-            # Calculate profile
-            profile = numerology.calculate_profile(user.birth_date)
+        # Calculate profile
+        profile = numerology.calculate_profile(user.birth_date)
 
-            # Generate forecast
-            forecast = await ai_service.generate_daily_forecast(user, profile)
+        # Generate forecast
+        forecast = await ai_service.generate_daily_forecast(user, profile)
 
-            # Send message
-            if user.language.value == "ru":
-                message = f"🌅 *Твой прогноз на сегодня*\n\n{forecast}"
-            else:
-                message = f"🌅 *Your forecast for today*\n\n{forecast}"
+        # Send message
+        if user.language.value == "ru":
+            message = f"🌅 *Твой прогноз на сегодня*\n\n{forecast}"
+        else:
+            message = f"🌅 *Your forecast for today*\n\n{forecast}"
 
-            await bot.send_message(
-                chat_id=user.telegram_id,
-                text=message,
-                parse_mode="Markdown",
-            )
-            sent_count += 1
-            logger.info(f"Sent daily forecast to user {user.telegram_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to send forecast to {user.telegram_id}: {e}")
-            continue
+        await bot.send_message(
+            chat_id=user.telegram_id,
+            text=message,
+            parse_mode="Markdown",
+        )
+        sent_count += 1
+        logger.info(f"Sent daily forecast to user {user.telegram_id}")
 
     return sent_count
 
@@ -78,31 +73,23 @@ def handler(event: dict, context: Any) -> dict:
     """
     logger.info(f"Notifications handler triggered: {event}")
 
-    try:
-        # Get current UTC hour
-        current_hour = datetime.utcnow().hour
+    # Get current UTC hour
+    current_hour = datetime.utcnow().hour
 
-        # Send forecasts
-        sent_count = asyncio.get_event_loop().run_until_complete(
-            send_daily_forecasts(current_hour)
-        )
+    # Send forecasts
+    sent_count = asyncio.get_event_loop().run_until_complete(
+        send_daily_forecasts(current_hour)
+    )
 
-        logger.info(f"Sent {sent_count} daily forecasts for hour {current_hour}")
+    logger.info(f"Sent {sent_count} daily forecasts for hour {current_hour}")
 
-        return {
-            "statusCode": 200,
-            "body": {
-                "hour": current_hour,
-                "notifications_sent": sent_count,
-            },
-        }
-
-    except Exception as e:
-        logger.error(f"Error in notifications handler: {e}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "body": {"error": str(e)},
-        }
+    return {
+        "statusCode": 200,
+        "body": {
+            "hour": current_hour,
+            "notifications_sent": sent_count,
+        },
+    }
 
 
 # For local testing

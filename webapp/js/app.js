@@ -38,20 +38,15 @@ const App = {
 
     /** Load translations */
     async loadTranslations() {
-        try {
-            const [ruRes, enRes] = await Promise.all([
-                fetch('i18n/ru.json'),
-                fetch('i18n/en.json')
-            ]);
+        const [ruRes, enRes] = await Promise.all([
+            fetch('i18n/ru.json'),
+            fetch('i18n/en.json')
+        ]);
 
-            this.i18n = {
-                ru: await ruRes.json(),
-                en: await enRes.json()
-            };
-        } catch (error) {
-            console.error('Failed to load translations:', error);
-            this.i18n = { ru: {}, en: {} };
-        }
+        this.i18n = {
+            ru: await ruRes.json(),
+            en: await enRes.json()
+        };
     },
 
     /** Apply translations to the page */
@@ -147,23 +142,14 @@ const App = {
 
     /** Load user data from API */
     async loadUserData() {
-        try {
-            this.userData = await API.getUser();
-            this.lang = this.userData.user.language;
-            this.applyTranslations();
+        this.userData = await API.getUser();
+        this.lang = this.userData.user.language;
+        this.applyTranslations();
 
-            if (this.userData.is_onboarded) {
-                this.renderUserData();
-            } else {
-                this.renderNotOnboardedState();
-            }
-        } catch (error) {
-            console.error('Failed to load user data:', error);
-            // If user not found at all (shouldn't happen after fix), use Telegram language
-            const tgLang = TelegramApp.getLanguage();
-            this.lang = tgLang.startsWith('ru') ? 'ru' : 'en';
-            this.applyTranslations();
-            TelegramApp.showAlert(this.t('error_loading'));
+        if (this.userData.is_onboarded) {
+            this.renderUserData();
+        } else {
+            this.renderNotOnboardedState();
         }
     },
 
@@ -307,74 +293,66 @@ const App = {
 
     /** Render payment history */
     async renderPayments() {
-        try {
-            const data = await API.getPayments();
-            const list = document.getElementById('payments-list');
+        const data = await API.getPayments();
+        const list = document.getElementById('payments-list');
 
-            if (!data.payments || data.payments.length === 0) {
-                list.innerHTML = `<p class="empty-state">${this.t('no_payments')}</p>`;
-                return;
-            }
-
-            list.innerHTML = data.payments.map(p => `
-                <div class="payment-item">
-                    <div class="payment-info">
-                        <span class="payment-type">${this.getPaymentTypeName(p.type)}</span>
-                        <span class="payment-date">${this.formatDate(p.date.split('T')[0])}</span>
-                    </div>
-                    <span class="payment-amount">${p.amount}★</span>
-                </div>
-            `).join('');
-        } catch (error) {
-            console.error('Failed to load payments:', error);
+        if (!data.payments || data.payments.length === 0) {
+            list.innerHTML = `<p class="empty-state">${this.t('no_payments')}</p>`;
+            return;
         }
+
+        list.innerHTML = data.payments.map(p => `
+            <div class="payment-item">
+                <div class="payment-info">
+                    <span class="payment-type">${this.getPaymentTypeName(p.type)}</span>
+                    <span class="payment-date">${this.formatDate(p.date.split('T')[0])}</span>
+                </div>
+                <span class="payment-amount">${p.amount}★</span>
+            </div>
+        `).join('');
     },
 
     /** Render available reports */
     async renderReports() {
-        try {
-            const data = await API.getReports();
-            const list = document.getElementById('reports-list');
+        const data = await API.getReports();
+        const list = document.getElementById('reports-list');
 
-            list.innerHTML = data.reports.map(r => {
-                const name = this.lang === 'ru' ? r.name_ru : r.name_en;
-                let statusText = '';
-                let statusClass = '';
-                let btnDisabled = false;
+        list.innerHTML = data.reports.map(r => {
+            const name = this.lang === 'ru' ? r.name_ru : r.name_en;
+            let statusText = '';
+            let statusClass = '';
+            let btnDisabled = false;
 
-                if (r.status === 'purchased') {
-                    statusText = this.t('report_purchased');
-                    statusClass = 'purchased';
-                    btnDisabled = true;
-                } else if (r.status === 'included_in_pro') {
-                    statusText = this.t('report_included');
-                    statusClass = 'included';
-                    btnDisabled = true;
-                }
+            if (r.status === 'purchased') {
+                statusText = this.t('report_purchased');
+                statusClass = 'purchased';
+                btnDisabled = true;
+            } else if (r.status === 'included_in_pro') {
+                statusText = this.t('report_included');
+                statusClass = 'included';
+                btnDisabled = true;
+            }
 
-                return `
-                    <div class="report-item">
-                        <div class="report-info">
-                            <span class="report-name">${name}</span>
-                            ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
-                        </div>
-                        <button class="report-btn" data-report="${r.id}" ${btnDisabled ? 'disabled' : ''}>
-                            ${btnDisabled ? this.t('btn_available') : `${r.price}★`}
-                        </button>
+            return `
+                <div class="report-item">
+                    <div class="report-info">
+                        <span class="report-name">${name}</span>
+                        ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
                     </div>
-                `;
-            }).join('');
+                    <button class="report-btn" data-report="${r.id}" ${btnDisabled ? 'disabled' : ''}>
+                        ${btnDisabled ? this.t('btn_available') : `${r.price}★`}
+                    </button>
+                </div>
+            `;
+        }).join('');
 
-            // Add click handlers for report buttons
-            list.querySelectorAll('.report-btn:not([disabled])').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const reportId = btn.getAttribute('data-report');
-                    this.handleBuy(`report_${reportId}`);
-                });
+        // Add click handlers for report buttons
+        list.querySelectorAll('.report-btn:not([disabled])').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const reportId = btn.getAttribute('data-report');
+                this.handleBuy(`report_${reportId}`);
             });
-        } catch (error) {
-            console.error('Failed to load reports:', error);
-        }
+        });
     },
 
     /** Handle setting change */
@@ -400,19 +378,12 @@ const App = {
 
         TelegramApp.showMainButtonLoading();
 
-        try {
-            await API.updateSettings(this.pendingSettings);
-            TelegramApp.hapticFeedback('success');
-            TelegramApp.showAlert(this.t('settings_saved'));
-            this.pendingSettings = null;
-            TelegramApp.hideMainButton();
-        } catch (error) {
-            console.error('Failed to save settings:', error);
-            TelegramApp.hapticFeedback('error');
-            TelegramApp.showAlert(this.t('error_saving'));
-        } finally {
-            TelegramApp.hideMainButtonLoading();
-        }
+        await API.updateSettings(this.pendingSettings);
+        TelegramApp.hapticFeedback('success');
+        TelegramApp.showAlert(this.t('settings_saved'));
+        this.pendingSettings = null;
+        TelegramApp.hideMainButton();
+        TelegramApp.hideMainButtonLoading();
     },
 
     /** Update notification time row visibility */
@@ -426,22 +397,16 @@ const App = {
     async handleBuy(productType) {
         TelegramApp.hapticFeedback('medium');
 
-        try {
-            const data = await API.createInvoice(productType);
+        const data = await API.createInvoice(productType);
 
-            if (data.invoice) {
-                // For Telegram Stars, we need to use the bot to send invoice
-                // Show message to user
-                TelegramApp.showAlert(this.t('invoice_created'));
-                // Close Mini App and let bot handle invoice
-                setTimeout(() => {
-                    TelegramApp.close();
-                }, 1500);
-            }
-        } catch (error) {
-            console.error('Failed to create invoice:', error);
-            TelegramApp.hapticFeedback('error');
-            TelegramApp.showAlert(this.t('error_purchase'));
+        if (data.invoice) {
+            // For Telegram Stars, we need to use the bot to send invoice
+            // Show message to user
+            TelegramApp.showAlert(this.t('invoice_created'));
+            // Close Mini App and let bot handle invoice
+            setTimeout(() => {
+                TelegramApp.close();
+            }, 1500);
         }
     },
 

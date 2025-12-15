@@ -25,20 +25,6 @@ def handler(event: dict, context: Any) -> dict:
     """
     logger.info(f"API event: {json.dumps(event)}")
 
-    try:
-        # Run async handler
-        response = asyncio.get_event_loop().run_until_complete(api_handler(event))
-        return response
-
-    except Exception as e:
-        logger.error(f"Error processing API request: {e}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "https://dreatrio-yaby.github.io",
-                "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, X-Telegram-Init-Data",
-            },
-            "body": json.dumps({"error": "Internal server error"}),
-        }
+    # Run async handler
+    response = asyncio.get_event_loop().run_until_complete(api_handler(event))
+    return response

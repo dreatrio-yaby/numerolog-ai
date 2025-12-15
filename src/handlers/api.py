@@ -23,49 +23,45 @@ AVAILABLE_REPORTS = [
 
 def validate_init_data(init_data: str) -> dict | None:
     """Validate Telegram Mini App initData and extract user info."""
-    try:
-        # Parse the init data
-        parsed = {}
-        for pair in init_data.split("&"):
-            if "=" in pair:
-                key, value = pair.split("=", 1)
-                parsed[key] = unquote(value)
+    # Parse the init data
+    parsed = {}
+    for pair in init_data.split("&"):
+        if "=" in pair:
+            key, value = pair.split("=", 1)
+            parsed[key] = unquote(value)
 
-        # Extract hash
-        received_hash = parsed.pop("hash", None)
-        if not received_hash:
-            return None
-
-        # Build data check string (sorted alphabetically)
-        data_check_string = "\n".join(
-            f"{k}={v}" for k, v in sorted(parsed.items())
-        )
-
-        # Calculate secret key
-        secret_key = hmac.new(
-            b"WebAppData",
-            settings.telegram_bot_token.encode(),
-            hashlib.sha256,
-        ).digest()
-
-        # Calculate hash
-        calculated_hash = hmac.new(
-            secret_key,
-            data_check_string.encode(),
-            hashlib.sha256,
-        ).hexdigest()
-
-        if calculated_hash != received_hash:
-            return None
-
-        # Extract user from parsed data
-        user_data = parsed.get("user")
-        if user_data:
-            return json.loads(user_data)
+    # Extract hash
+    received_hash = parsed.pop("hash", None)
+    if not received_hash:
         return None
 
-    except Exception:
+    # Build data check string (sorted alphabetically)
+    data_check_string = "\n".join(
+        f"{k}={v}" for k, v in sorted(parsed.items())
+    )
+
+    # Calculate secret key
+    secret_key = hmac.new(
+        b"WebAppData",
+        settings.telegram_bot_token.encode(),
+        hashlib.sha256,
+    ).digest()
+
+    # Calculate hash
+    calculated_hash = hmac.new(
+        secret_key,
+        data_check_string.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if calculated_hash != received_hash:
         return None
+
+    # Extract user from parsed data
+    user_data = parsed.get("user")
+    if user_data:
+        return json.loads(user_data)
+    return None
 
 
 def cors_response(status_code: int, body: Any) -> dict:
@@ -173,14 +169,11 @@ async def handle_update_settings(telegram_id: int, body: dict) -> dict:
     if "notification_time" in body:
         time_str = body["notification_time"]
         # Validate HH:MM format
-        if len(time_str) == 5 and time_str[2] == ":":
-            try:
-                hour = int(time_str[:2])
-                minute = int(time_str[3:])
-                if 0 <= hour <= 23 and 0 <= minute <= 59:
-                    user.notification_time = time_str
-            except ValueError:
-                pass
+        if len(time_str) == 5 and time_str[2] == ":" and time_str[:2].isdigit() and time_str[3:].isdigit():
+            hour = int(time_str[:2])
+            minute = int(time_str[3:])
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                user.notification_time = time_str
 
     await db.update_user(user)
 
@@ -303,10 +296,7 @@ async def api_handler(event: dict) -> dict:
     # Parse body for POST/PUT requests
     body = {}
     if event.get("body"):
-        try:
-            body = json.loads(event["body"])
-        except json.JSONDecodeError:
-            return error_response(400, "Invalid JSON body")
+        body = json.loads(event["body"])
 
     # Route requests
     if path == "/api/user" and method == "GET":

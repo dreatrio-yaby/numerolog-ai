@@ -43,6 +43,7 @@ ENV/
 htmlcov/
 .tox/
 .nox/
+/tests
 
 # AWS SAM
 .aws-sam/

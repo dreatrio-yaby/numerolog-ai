@@ -92,6 +92,10 @@ User is created at `/start` (before full onboarding). Mini App checks `is_onboar
 - Mini App: JSON files in `webapp/i18n/`
 - User's `language` field determines which texts to use
 
+## Error Handling
+
+**ВАЖНО:** Не используй try-except/try-catch конструкции. Ошибки должны пробрасываться с полным stack trace для упрощения отладки. Это временное правило на период активной разработки.
+
 ## Environment Variables
 
 Required in `.env` or Lambda environment:

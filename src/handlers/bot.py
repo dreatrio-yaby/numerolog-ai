@@ -181,11 +181,8 @@ async def cmd_start(message: Message, state: FSMContext):
     referrer_id = None
     if message.text and len(message.text.split()) > 1:
         ref_code = message.text.split()[1]
-        if ref_code.startswith("ref_"):
-            try:
-                referrer_id = int(ref_code[4:])
-            except ValueError:
-                pass
+        if ref_code.startswith("ref_") and ref_code[4:].isdigit():
+            referrer_id = int(ref_code[4:])
 
     # Check if user exists
     user = await db.get_user(telegram_id)

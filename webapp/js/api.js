@@ -21,22 +21,17 @@ const API = {
             ...options.headers
         };
 
-        try {
-            const response = await fetch(url, {
-                ...options,
-                headers
-            });
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
 
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error.error || `HTTP ${response.status}`);
-            }
-
-            return await response.json();
-        } catch (error) {
-            console.error('API request failed:', error);
-            throw error;
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `HTTP ${response.status}`);
         }
+
+        return await response.json();
     },
 
     /** GET /api/user - Get user data */
