@@ -20,7 +20,7 @@ body {
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color);
     min-height: 100vh;
-    padding-bottom: 80px;
+    padding-bottom: 70px;
 }
 
 #app {
@@ -59,28 +59,30 @@ body {
     to { transform: rotate(360deg); }
 }
 
-/* Tabs */
+/* Tab Bar */
 .tabs {
     display: flex;
     background: var(--tg-theme-bg-color);
-    border-bottom: 1px solid var(--tg-theme-secondary-bg-color);
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 100;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding: 8px 4px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+    box-shadow: 0 -1px 12px rgba(0, 0, 0, 0.08);
 }
 
 .tab {
     flex: 1;
+    min-width: 0;
     background: none;
     border: none;
     padding: 8px 4px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
     color: var(--tg-theme-hint-color);
     cursor: pointer;
     transition: color 0.2s;
@@ -91,11 +93,23 @@ body {
 }
 
 .tab-icon {
-    font-size: 20px;
+    width: 24px;
+    height: 24px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.tab.active .tab-icon {
+    stroke-width: 2.5;
 }
 
 .tab-label {
     font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 /* Content */
