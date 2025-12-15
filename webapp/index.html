@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Numerolog Settings</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Loading state -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Tab navigation -->
+        <nav class="tabs" id="tabs">
+            <button class="tab active" data-tab="profile">
+                <span class="tab-icon">🔮</span>
+                <span class="tab-label" data-i18n="tab_profile">Профиль</span>
+            </button>
+            <button class="tab" data-tab="settings">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-label" data-i18n="tab_settings">Настройки</span>
+            </button>
+            <button class="tab" data-tab="subscription">
+                <span class="tab-icon">💎</span>
+                <span class="tab-label" data-i18n="tab_subscription">Подписка</span>
+            </button>
+            <button class="tab" data-tab="reports">
+                <span class="tab-icon">📊</span>
+                <span class="tab-label" data-i18n="tab_reports">Отчёты</span>
+            </button>
+            <button class="tab" data-tab="referral">
+                <span class="tab-icon">👥</span>
+                <span class="tab-label" data-i18n="tab_referral">Рефералы</span>
+            </button>
+        </nav>
+
+        <!-- Tab content -->
+        <main class="content">
+            <!-- Profile tab -->
+            <section id="tab-profile" class="tab-content active">
+                <div class="card">
+                    <h2 data-i18n="profile_title">Твой профиль</h2>
+                    <div class="profile-info">
+                        <div class="info-row">
+                            <span class="label" data-i18n="profile_name">Имя:</span>
+                            <span class="value" id="profile-name">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label" data-i18n="profile_birthdate">Дата рождения:</span>
+                            <span class="value" id="profile-birthdate">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 data-i18n="numbers_title">Твои числа</h3>
+                    <div class="numbers-grid">
+                        <div class="number-item">
+                            <span class="number-value" id="num-life-path">-</span>
+                            <span class="number-label" data-i18n="num_life_path">Число судьбы</span>
+                        </div>
+                        <div class="number-item">
+                            <span class="number-value" id="num-soul">-</span>
+                            <span class="number-label" data-i18n="num_soul">Число души</span>
+                        </div>
+                        <div class="number-item">
+                            <span class="number-value" id="num-expression">-</span>
+                            <span class="number-label" data-i18n="num_expression">Число выражения</span>
+                        </div>
+                        <div class="number-item">
+                            <span class="number-value" id="num-personality">-</span>
+                            <span class="number-label" data-i18n="num_personality">Число личности</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 data-i18n="personal_cycles">Персональные циклы</h3>
+                    <div class="cycles-row">
+                        <div class="cycle-item">
+                            <span class="cycle-value" id="cycle-year">-</span>
+                            <span class="cycle-label" data-i18n="cycle_year">Год</span>
+                        </div>
+                        <div class="cycle-item">
+                            <span class="cycle-value" id="cycle-month">-</span>
+                            <span class="cycle-label" data-i18n="cycle_month">Месяц</span>
+                        </div>
+                        <div class="cycle-item">
+                            <span class="cycle-value" id="cycle-day">-</span>
+                            <span class="cycle-label" data-i18n="cycle_day">День</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 data-i18n="matrix_title">Матрица Пифагора</h3>
+                    <div class="matrix-grid" id="matrix-grid">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings tab -->
+            <section id="tab-settings" class="tab-content">
+                <div class="card">
+                    <h2 data-i18n="settings_title">Настройки</h2>
+
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <span data-i18n="setting_language">Язык</span>
+                        </div>
+                        <div class="setting-control">
+                            <select id="setting-language" class="select">
+                                <option value="ru">Русский</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <span data-i18n="setting_notifications">Уведомления</span>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" id="setting-notifications">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="setting-item" id="notification-time-row">
+                        <div class="setting-label">
+                            <span data-i18n="setting_notification_time">Время уведомлений</span>
+                        </div>
+                        <div class="setting-control">
+                            <input type="time" id="setting-notification-time" class="time-input" value="08:00">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Subscription tab -->
+            <section id="tab-subscription" class="tab-content">
+                <div class="card">
+                    <h2 data-i18n="subscription_title">Подписка</h2>
+
+                    <div class="subscription-status">
+                        <div class="plan-badge" id="current-plan">FREE</div>
+                        <p class="plan-expires" id="plan-expires"></p>
+                    </div>
+
+                    <div class="plans-list">
+                        <button class="plan-button lite" id="buy-lite">
+                            <span class="plan-name">LITE</span>
+                            <span class="plan-price">175★</span>
+                            <span class="plan-desc" data-i18n="plan_lite_desc">Безлимит вопросов</span>
+                        </button>
+                        <button class="plan-button pro" id="buy-pro">
+                            <span class="plan-name">PRO</span>
+                            <span class="plan-price">500★</span>
+                            <span class="plan-desc" data-i18n="plan_pro_desc">Безлимит + отчёты</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 data-i18n="payment_history">История платежей</h3>
+                    <div id="payments-list" class="payments-list">
+                        <p class="empty-state" data-i18n="no_payments">Платежей пока нет</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Reports tab -->
+            <section id="tab-reports" class="tab-content">
+                <div class="card">
+                    <h2 data-i18n="reports_title">Отчёты</h2>
+                    <div id="reports-list" class="reports-list">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Referral tab -->
+            <section id="tab-referral" class="tab-content">
+                <div class="card">
+                    <h2 data-i18n="referral_title">Реферальная программа</h2>
+                    <p class="referral-desc" data-i18n="referral_desc">Пригласи друга и получи +10 бонусных вопросов!</p>
+
+                    <div class="referral-stats">
+                        <div class="stat-item">
+                            <span class="stat-value" id="referral-count">0</span>
+                            <span class="stat-label" data-i18n="referral_invited">Приглашено</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="bonus-questions">0</span>
+                            <span class="stat-label" data-i18n="referral_bonus">Бонусы</span>
+                        </div>
+                    </div>
+
+                    <div class="referral-link-box">
+                        <input type="text" id="referral-link" class="referral-link" readonly>
+                        <button class="btn-copy" id="copy-link" data-i18n="btn_copy">Копировать</button>
+                    </div>
+
+                    <button class="btn-share" id="share-link" data-i18n="btn_share">Поделиться</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="js/telegram.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

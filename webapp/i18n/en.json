@@ -1,0 +1,63 @@
+{
+    "tab_profile": "Profile",
+    "tab_settings": "Settings",
+    "tab_subscription": "Subscription",
+    "tab_reports": "Reports",
+    "tab_referral": "Referrals",
+
+    "profile_title": "Your Profile",
+    "profile_name": "Name:",
+    "profile_birthdate": "Birth date:",
+
+    "numbers_title": "Your Numbers",
+    "num_life_path": "Life Path",
+    "num_soul": "Soul Number",
+    "num_expression": "Expression",
+    "num_personality": "Personality",
+
+    "personal_cycles": "Personal Cycles",
+    "cycle_year": "Year",
+    "cycle_month": "Month",
+    "cycle_day": "Day",
+
+    "matrix_title": "Pythagoras Matrix",
+
+    "settings_title": "Settings",
+    "setting_language": "Language",
+    "setting_notifications": "Notifications",
+    "setting_notification_time": "Notification time",
+
+    "subscription_title": "Subscription",
+    "plan_lite_desc": "Unlimited questions",
+    "plan_pro_desc": "Unlimited + reports",
+    "expires": "Valid until",
+
+    "payment_history": "Payment History",
+    "no_payments": "No payments yet",
+
+    "reports_title": "Reports",
+    "report_purchased": "Purchased",
+    "report_included": "Included in PRO",
+    "report_full_portrait": "Full Portrait",
+    "report_year_forecast": "Year Forecast",
+    "report_compatibility_deep": "Deep Compatibility",
+
+    "referral_title": "Referral Program",
+    "referral_desc": "Invite a friend and get +10 bonus questions!",
+    "referral_invited": "Invited",
+    "referral_bonus": "Bonuses",
+
+    "btn_copy": "Copy",
+    "btn_share": "Share",
+    "btn_save": "Save",
+    "btn_available": "Available",
+
+    "link_copied": "Link copied!",
+    "share_text": "Try AI Numerologist! Discover your numbers 🔮",
+    "settings_saved": "Settings saved!",
+    "invoice_created": "Invoice created! Check your bot chat.",
+
+    "error_loading": "Failed to load data",
+    "error_saving": "Failed to save",
+    "error_purchase": "Failed to create invoice"
+}

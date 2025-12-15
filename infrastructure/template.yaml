@@ -83,17 +83,64 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref ReportsTable
 
+  # Lambda Function - Mini App API
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub numerolog-api-${Environment}
+      CodeUri: ../
+      Handler: src.api_handler.handler
+      Description: Handles Mini App API requests
+      Events:
+        ApiGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/{proxy+}
+            Method: GET
+        ApiPut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/{proxy+}
+            Method: PUT
+        ApiPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/{proxy+}
+            Method: POST
+        ApiOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/{proxy+}
+            Method: OPTIONS
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConversationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReportsTable
+
   # HTTP API Gateway
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !Ref Environment
-      Description: API Gateway for Telegram webhook
+      Description: API Gateway for Telegram webhook and Mini App API
       CorsConfiguration:
         AllowOrigins:
-          - "*"
+          - "https://dreatrio-yaby.github.io"
         AllowMethods:
+          - GET
+          - PUT
           - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - X-Telegram-Init-Data
 
   # DynamoDB Tables
   UsersTable:
@@ -156,6 +203,10 @@ Outputs:
   WebhookUrl:
     Description: Telegram Webhook URL
     Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/webhook"
+
+  ApiUrl:
+    Description: Mini App API URL
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/api"
 
   WebhookFunctionArn:
     Description: Webhook Lambda Function ARN

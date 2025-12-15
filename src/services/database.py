@@ -9,7 +9,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 from src.config import get_settings
-from src.models.user import Conversation, Language, Report, SubscriptionType, User
+from src.models.user import Conversation, Language, Payment, Report, SubscriptionType, User
 
 settings = get_settings()
 
@@ -51,6 +51,15 @@ class DatabaseService:
             "referred_by": user.referred_by,
             "referrals_count": user.referrals_count,
             "purchased_reports": user.purchased_reports,
+            "payment_history": [
+                {
+                    "date": p.date.isoformat(),
+                    "type": p.type,
+                    "amount": p.amount,
+                    "currency": p.currency,
+                }
+                for p in user.payment_history
+            ],
             "notifications_enabled": user.notifications_enabled,
             "notification_time": user.notification_time,
         }
@@ -86,6 +95,15 @@ class DatabaseService:
             referred_by=item.get("referred_by"),
             referrals_count=int(item.get("referrals_count", 0)),
             purchased_reports=item.get("purchased_reports", []),
+            payment_history=[
+                Payment(
+                    date=datetime.fromisoformat(p["date"]),
+                    type=p["type"],
+                    amount=int(p["amount"]),
+                    currency=p.get("currency", "XTR"),
+                )
+                for p in item.get("payment_history", [])
+            ],
             notifications_enabled=item.get("notifications_enabled", True),
             notification_time=item.get("notification_time", "08:00"),
         )
@@ -171,6 +189,22 @@ class DatabaseService:
         user.subscription_expires = datetime.utcnow() + timedelta(
             days=settings.subscription_days
         )
+        return await self.update_user(user)
+
+    async def add_payment(
+        self,
+        user: User,
+        payment_type: str,
+        amount: int,
+    ) -> User:
+        """Add payment to user's payment history."""
+        payment = Payment(
+            date=datetime.utcnow(),
+            type=payment_type,
+            amount=amount,
+            currency="XTR",
+        )
+        user.payment_history.append(payment)
         return await self.update_user(user)
 
     async def add_purchased_report(self, user: User, report_type: str) -> User:

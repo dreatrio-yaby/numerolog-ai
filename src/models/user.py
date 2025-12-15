@@ -22,6 +22,15 @@ class Language(str, Enum):
     EN = "en"
 
 
+class Payment(BaseModel):
+    """Payment record model."""
+
+    date: datetime
+    type: str  # subscription_lite, subscription_pro, report_<name>
+    amount: int  # Telegram Stars
+    currency: str = "XTR"
+
+
 class User(BaseModel):
     """User model."""
 
@@ -49,6 +58,9 @@ class User(BaseModel):
 
     # Reports purchased (for FREE/LITE users)
     purchased_reports: list[str] = Field(default_factory=list)
+
+    # Payment history
+    payment_history: list[Payment] = Field(default_factory=list)
 
     # Settings
     notifications_enabled: bool = True

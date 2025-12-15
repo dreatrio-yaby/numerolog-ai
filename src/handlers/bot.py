@@ -14,6 +14,7 @@ from aiogram.types import (
     LabeledPrice,
     Message,
     PreCheckoutQuery,
+    WebAppInfo,
 )
 
 from src.config import get_settings
@@ -23,6 +24,9 @@ from src.services.database import db
 from src.services.numerology import calculate_compatibility, get_full_profile
 
 settings = get_settings()
+
+# Mini App URL
+WEBAPP_URL = "https://dreatrio-yaby.github.io/numerolog-ai/"
 
 # Router for handlers
 router = Router()
@@ -115,6 +119,7 @@ def get_main_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📅 Прогноз на сегодня", callback_data="today")],
             [InlineKeyboardButton(text="👫 Совместимость", callback_data="compatibility")],
             [InlineKeyboardButton(text="💎 Тарифы", callback_data="buy")],
+            [InlineKeyboardButton(text="⚙️ Настройки", web_app=WebAppInfo(url=WEBAPP_URL))],
         ]
     else:
         buttons = [
@@ -122,6 +127,7 @@ def get_main_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📅 Today's Forecast", callback_data="today")],
             [InlineKeyboardButton(text="👫 Compatibility", callback_data="compatibility")],
             [InlineKeyboardButton(text="💎 Plans", callback_data="buy")],
+            [InlineKeyboardButton(text="⚙️ Settings", web_app=WebAppInfo(url=WEBAPP_URL))],
         ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -470,7 +476,8 @@ async def process_pre_checkout(pre_checkout: PreCheckoutQuery, bot: Bot):
 async def process_successful_payment(message: Message):
     """Handle successful payment."""
     telegram_id = message.from_user.id
-    payload = message.successful_payment.invoice_payload
+    payment = message.successful_payment
+    payload = payment.invoice_payload
 
     user = await db.get_user(telegram_id)
     if not user:
@@ -478,13 +485,21 @@ async def process_successful_payment(message: Message):
 
     lang = user.language.value
 
+    # Save payment to history
+    await db.add_payment(user, payload, payment.total_amount)
+
     # Activate subscription
     if payload == "subscription_lite":
-        await db.activate_subscription(user, SubscriptionType.LITE)
+        user = await db.activate_subscription(user, SubscriptionType.LITE)
         plan_name = "LITE"
     elif payload == "subscription_pro":
-        await db.activate_subscription(user, SubscriptionType.PRO)
+        user = await db.activate_subscription(user, SubscriptionType.PRO)
         plan_name = "PRO"
+    elif payload.startswith("report_"):
+        report_id = payload[7:]
+        await db.add_purchased_report(user, report_id)
+        # TODO: Generate and send report
+        return
     else:
         return
 
