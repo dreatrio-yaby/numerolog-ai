@@ -63,6 +63,15 @@
     "btn_available": "Available",
     "btn_open": "Open",
     "btn_create": "Create",
+    "btn_create_new": "Create new",
+
+    "confirm_delete_report": "Delete this report?",
+    "partner": "Partner",
+    "for_child": "For child",
+    "for_business": "For business",
+    "for_self": "For myself",
+    "boy": "boy",
+    "girl": "girl",
 
     "link_copied": "Link copied!",
     "share_text": "Try AI Numerologist! Discover your numbers 🔮",

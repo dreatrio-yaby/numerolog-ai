@@ -519,6 +519,122 @@ body {
     cursor: default;
 }
 
+/* Multi-instance reports */
+.report-item-multi {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.report-header-expandable {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 4px 0;
+}
+
+.report-expand-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--tg-theme-hint-color);
+    font-size: 13px;
+}
+
+.expand-icon {
+    transition: transform 0.2s;
+}
+
+.report-item-multi.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.instances-list {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--tg-theme-hint-color, #ccc);
+    opacity: 0.3;
+}
+
+.report-item-multi.expanded .instances-list {
+    display: flex;
+}
+
+.instance-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+    border-radius: 8px;
+}
+
+.instance-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.instance-context {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.instance-date {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
+}
+
+.instance-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.instance-open-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.instance-delete-btn {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    opacity: 0.6;
+}
+
+.instance-delete-btn:hover {
+    opacity: 1;
+}
+
+.create-new-btn {
+    width: 100%;
+    padding: 10px;
+    border: 2px dashed var(--tg-theme-hint-color, #ccc);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--tg-theme-hint-color);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.create-new-btn:hover {
+    border-color: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-color);
+}
+
 /* Referral */
 .referral-desc {
     color: var(--tg-theme-hint-color);

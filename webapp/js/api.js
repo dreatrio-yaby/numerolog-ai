@@ -58,8 +58,14 @@ const API = {
     },
 
     /** GET /api/reports/{reportId} - Get report content */
-    async getReportContent(reportId) {
-        return this.request(`/reports/${reportId}`, { method: 'GET' });
+    async getReportContent(reportId, instanceId = null) {
+        const path = instanceId ? `/reports/${reportId}/${instanceId}` : `/reports/${reportId}`;
+        return this.request(path, { method: 'GET' });
+    },
+
+    /** DELETE /api/reports/{reportId}/{instanceId} - Delete report instance */
+    async deleteReportInstance(reportId, instanceId) {
+        return this.request(`/reports/${reportId}/${instanceId}`, { method: 'DELETE' });
     },
 
     /** POST /api/invoice - Create invoice for purchase */

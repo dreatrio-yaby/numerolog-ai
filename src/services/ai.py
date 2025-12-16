@@ -520,8 +520,22 @@ Be very specific. This is a paid report — deliver real practical value!"""
         self,
         user: User,
         profile: NumerologyProfile,
+        month: int = None,
+        year: int = None,
     ) -> str:
-        """Generate favorable dates calendar report (premium)."""
+        """Generate favorable dates calendar report (premium).
+
+        Args:
+            month: Target month (1-12). Defaults to current month.
+            year: Target year. Defaults to current year.
+        """
+        from datetime import datetime
+
+        if month is None:
+            month = datetime.now().month
+        if year is None:
+            year = datetime.now().year
+
         lang = user.language.value
         life_path_info = get_life_path_meaning(profile.life_path, lang)
 
@@ -630,8 +644,18 @@ Provide SPECIFIC DATES for the next 3 months with explanations."""
         self,
         user: User,
         profile: NumerologyProfile,
+        year: int = None,
     ) -> str:
-        """Generate detailed year forecast report (premium)."""
+        """Generate detailed year forecast report (premium).
+
+        Args:
+            year: Target year for forecast. Defaults to current year.
+        """
+        from datetime import datetime
+
+        if year is None:
+            year = datetime.now().year
+
         lang = user.language.value
         life_path_info = get_life_path_meaning(profile.life_path, lang)
         personal_year_info = get_personal_year_meaning(profile.personal_year, lang)

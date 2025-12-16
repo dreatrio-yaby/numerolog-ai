@@ -149,8 +149,8 @@ const ReportPage = {
         // Update loading text
         document.getElementById('loading-text').textContent = this.t('loading');
 
-        // Get report ID from URL or start_param
-        const reportId = this.getReportId();
+        // Get report ID and optional instance ID from URL or start_param
+        const { reportId, instanceId } = this.getReportId();
 
         if (!reportId) {
             this.showError(this.t('error'));
@@ -161,7 +161,7 @@ const ReportPage = {
         this.setupBackButtons();
 
         // Load and render report
-        await this.loadReport(reportId);
+        await this.loadReport(reportId, instanceId);
     },
 
     /** Get translation */
@@ -169,21 +169,27 @@ const ReportPage = {
         return this.i18n[this.language]?.[key] || this.i18n['en'][key] || key;
     },
 
-    /** Get report ID from URL or start_param */
+    /** Get report ID and optional instance ID from URL or start_param */
     getReportId() {
         // Try URL parameter first
         const urlParams = new URLSearchParams(window.location.search);
         let reportId = urlParams.get('id');
+        let instanceId = urlParams.get('instance');
 
         // Try start_param (from Telegram deep link)
         if (!reportId) {
             const startParam = TelegramApp.getStartParam();
             if (startParam && startParam.startsWith('report_')) {
-                reportId = startParam.replace('report_', '');
+                // Format: report_<type> or report_<type>_<instance>
+                const parts = startParam.replace('report_', '').split('_');
+                reportId = parts[0];
+                if (parts.length > 1) {
+                    instanceId = parts.slice(1).join('_');
+                }
             }
         }
 
-        return reportId;
+        return { reportId, instanceId };
     },
 
     /** Setup back button handlers */
@@ -212,9 +218,9 @@ const ReportPage = {
     },
 
     /** Load report from API */
-    async loadReport(reportId) {
+    async loadReport(reportId, instanceId = null) {
         try {
-            const data = await API.getReportContent(reportId);
+            const data = await API.getReportContent(reportId, instanceId);
             this.renderReport(data);
         } catch (error) {
             console.error('Failed to load report:', error);

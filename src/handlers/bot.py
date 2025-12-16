@@ -32,15 +32,20 @@ WEBAPP_URL = "https://dreatrio-yaby.github.io/numerolog-ai/"
 router = Router()
 
 
-def get_report_view_keyboard(report_id: str, lang: str) -> InlineKeyboardMarkup:
+def get_report_view_keyboard(
+    report_id: str, lang: str, instance_id: Optional[str] = None
+) -> InlineKeyboardMarkup:
     """Create inline keyboard with button to view report in Mini App."""
     btn_text = "✨ Открыть отчёт" if lang == "ru" else "✨ View Report"
+    url = f"{WEBAPP_URL}report.html?id={report_id}"
+    if instance_id:
+        url += f"&instance={instance_id}"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text=btn_text,
-                    web_app=WebAppInfo(url=f"{WEBAPP_URL}report.html?id={report_id}"),
+                    web_app=WebAppInfo(url=url),
                 )
             ]
         ]
@@ -71,6 +76,12 @@ class ReportInputStates(StatesGroup):
     # Compatibility PRO report
     waiting_for_partner_name = State()
     waiting_for_partner_birthdate = State()
+
+    # Year forecast report
+    waiting_for_forecast_year = State()
+
+    # Date calendar report
+    waiting_for_calendar_month = State()
 
 
 # Texts
@@ -620,6 +631,8 @@ async def process_successful_payment(message: Message):
         plan_name = "PRO"
     elif payload.startswith("report_"):
         report_id = payload[7:]
+        info = REPORT_INFO.get(report_id, {})
+        is_multi = info.get("multi_instance", False)
 
         # Check if already generating (prevent duplicates from webhook retries)
         if await db.is_report_generating(telegram_id, report_id):
@@ -637,25 +650,35 @@ async def process_successful_payment(message: Message):
         # Get user profile
         profile = get_full_profile(user.name, user.birth_date)
 
-        # Get pending data if needed (for name_selection and compatibility_pro)
+        # Get pending data if needed (for reports with context)
         pending_data = await db.get_pending_report_data(telegram_id, report_id)
+        instance_id = None
+        context = pending_data or {}
 
         # Generate report based on type
         if report_id == "full_portrait":
             content = await ai_service.generate_full_portrait_report(user, profile)
         elif report_id == "financial_code":
             content = await ai_service.generate_financial_code_report(user, profile)
-        elif report_id == "date_calendar":
-            content = await ai_service.generate_date_calendar_report(user, profile)
-        elif report_id == "year_forecast":
-            content = await ai_service.generate_year_forecast_report(user, profile)
+        elif report_id == "date_calendar" and pending_data:
+            month = pending_data.get("month")
+            year = pending_data.get("year")
+            content = await ai_service.generate_date_calendar_report(user, profile, month, year)
+            await db.delete_pending_report_data(telegram_id, report_id)
+        elif report_id == "year_forecast" and pending_data:
+            year = pending_data.get("year")
+            content = await ai_service.generate_year_forecast_report(user, profile, year)
+            await db.delete_pending_report_data(telegram_id, report_id)
         elif report_id == "name_selection" and pending_data:
             content = await ai_service.generate_name_selection_report(user, profile, pending_data)
             await db.delete_pending_report_data(telegram_id, report_id)
         elif report_id == "compatibility_pro" and pending_data:
-            content = await ai_service.generate_compatibility_pro_report(
-                user, profile, pending_data
-            )
+            # AI service expects 'name' and 'birth_date' keys
+            ai_data = {
+                "name": pending_data.get("partner_name"),
+                "birth_date": pending_data.get("partner_birth_date"),
+            }
+            content = await ai_service.generate_compatibility_pro_report(user, profile, ai_data)
             await db.delete_pending_report_data(telegram_id, report_id)
         else:
             await thinking_msg.delete()
@@ -667,15 +690,18 @@ async def process_successful_payment(message: Message):
             return
 
         # Save report to database
-        await db.save_report(telegram_id, report_id, content)
+        if is_multi:
+            instance_id = await db.save_report_instance(telegram_id, report_id, content, context)
+        else:
+            await db.save_report(telegram_id, report_id, content)
         await db.clear_report_generating(telegram_id, report_id)
 
         # Delete thinking message
         await thinking_msg.delete()
 
         # Send button to view report in Mini App
-        report_name = REPORT_INFO.get(report_id, {})
-        title = report_name.get("name_ru" if lang == "ru" else "name_en", "Отчёт")
+        report_info = REPORT_INFO.get(report_id, {})
+        title = report_info.get("name_ru" if lang == "ru" else "name_en", "Отчёт")
         done_text = (
             f"✨ *{title}* готов!\n\nНажми кнопку ниже, чтобы открыть отчёт."
             if lang == "ru"
@@ -684,7 +710,7 @@ async def process_successful_payment(message: Message):
         await message.answer(
             done_text,
             parse_mode="Markdown",
-            reply_markup=get_report_view_keyboard(report_id, lang),
+            reply_markup=get_report_view_keyboard(report_id, lang, instance_id),
         )
         return
     else:
@@ -718,19 +744,33 @@ async def cmd_invite(message: Message):
 REPORT_INFO = {
     "full_portrait": {"price": 120, "name_ru": "Полный портрет", "name_en": "Full Portrait"},
     "financial_code": {"price": 150, "name_ru": "Финансовый код", "name_en": "Financial Code"},
-    "date_calendar": {"price": 130, "name_ru": "Календарь дат", "name_en": "Date Calendar"},
-    "year_forecast": {"price": 150, "name_ru": "Прогноз на год", "name_en": "Year Forecast"},
+    "date_calendar": {
+        "price": 130,
+        "name_ru": "Календарь дат",
+        "name_en": "Date Calendar",
+        "requires_input": True,
+        "multi_instance": True,
+    },
+    "year_forecast": {
+        "price": 150,
+        "name_ru": "Прогноз на год",
+        "name_en": "Year Forecast",
+        "requires_input": True,
+        "multi_instance": True,
+    },
     "name_selection": {
         "price": 140,
         "name_ru": "Подбор имени",
         "name_en": "Name Selection",
         "requires_input": True,
+        "multi_instance": True,
     },
     "compatibility_pro": {
         "price": 150,
         "name_ru": "Совместимость PRO",
         "name_en": "Compatibility PRO",
         "requires_input": True,
+        "multi_instance": True,
     },
 }
 
@@ -754,13 +794,14 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
     is_pro = user.subscription_type.value == "pro" and user.is_premium()
     has_report = report_id in user.purchased_reports
     info = REPORT_INFO.get(report_id)
+    is_multi = info.get("multi_instance", False)
 
     if not info:
         await message.answer("Unknown report")
         return
 
-    # 1. Already purchased - show button to view in Mini App
-    if has_report:
+    # 1. For single-instance reports: already purchased - show button to view
+    if has_report and not is_multi:
         existing = await db.get_report(telegram_id, report_id)
         if existing:
             title = info["name_ru"] if lang == "ru" else info["name_en"]
@@ -776,8 +817,8 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
             )
             return
 
-    # 2. PRO + no input needed - generate directly
-    if is_pro and not info.get("requires_input"):
+    # 2. PRO + no input needed - generate directly (only for single-instance)
+    if is_pro and not info.get("requires_input") and not is_multi:
         # Check if already generating (prevent duplicates from webhook retries)
         if await db.is_report_generating(telegram_id, report_id):
             return
@@ -792,10 +833,6 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
             content = await ai_service.generate_full_portrait_report(user, profile)
         elif report_id == "financial_code":
             content = await ai_service.generate_financial_code_report(user, profile)
-        elif report_id == "date_calendar":
-            content = await ai_service.generate_date_calendar_report(user, profile)
-        elif report_id == "year_forecast":
-            content = await ai_service.generate_year_forecast_report(user, profile)
         else:
             await thinking_msg.delete()
             await db.clear_report_generating(telegram_id, report_id)
@@ -870,6 +907,113 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
             )
 
             await message.answer(text, parse_mode="Markdown")
+            return
+
+        elif report_id == "year_forecast":
+            await state.set_state(ReportInputStates.waiting_for_forecast_year)
+            await state.update_data(report_id=report_id, is_pro=is_pro)
+
+            current_year = datetime.now().year
+            text = (
+                "📅 *Прогноз на год*\n\nВыбери год для прогноза:"
+                if lang == "ru"
+                else "📅 *Year Forecast*\n\nSelect year for forecast:"
+            )
+
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text=str(current_year),
+                            callback_data=f"forecast_year_{current_year}",
+                        ),
+                        InlineKeyboardButton(
+                            text=str(current_year + 1),
+                            callback_data=f"forecast_year_{current_year + 1}",
+                        ),
+                    ],
+                ]
+            )
+            await message.answer(text, parse_mode="Markdown", reply_markup=keyboard)
+            return
+
+        elif report_id == "date_calendar":
+            await state.set_state(ReportInputStates.waiting_for_calendar_month)
+            await state.update_data(report_id=report_id, is_pro=is_pro)
+
+            now = datetime.now()
+            current_month = now.month
+            current_year = now.year
+
+            # Next month
+            if current_month == 12:
+                next_month = 1
+                next_year = current_year + 1
+            else:
+                next_month = current_month + 1
+                next_year = current_year
+
+            month_names_ru = [
+                "",
+                "Январь",
+                "Февраль",
+                "Март",
+                "Апрель",
+                "Май",
+                "Июнь",
+                "Июль",
+                "Август",
+                "Сентябрь",
+                "Октябрь",
+                "Ноябрь",
+                "Декабрь",
+            ]
+            month_names_en = [
+                "",
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            ]
+
+            text = (
+                "📆 *Календарь дат*\n\nВыбери месяц:"
+                if lang == "ru"
+                else "📆 *Date Calendar*\n\nSelect month:"
+            )
+
+            if lang == "ru":
+                cur_label = f"{month_names_ru[current_month]} {current_year}"
+                next_label = f"{month_names_ru[next_month]} {next_year}"
+            else:
+                cur_label = f"{month_names_en[current_month]} {current_year}"
+                next_label = f"{month_names_en[next_month]} {next_year}"
+
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text=cur_label,
+                            callback_data=f"calendar_month_{current_month}_{current_year}",
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            text=next_label,
+                            callback_data=f"calendar_month_{next_month}_{next_year}",
+                        ),
+                    ],
+                ]
+            )
+            await message.answer(text, parse_mode="Markdown", reply_markup=keyboard)
             return
 
     # 4. Not PRO, not purchased - send invoice
@@ -1004,12 +1148,12 @@ async def finalize_name_selection(
     data = await state.get_data()
     is_pro = data.get("is_pro", False)
 
-    # Save pending data
-    pending_data = {"purpose": purpose}
+    # Context for multi-instance report
+    context = {"purpose": purpose}
     if gender:
-        pending_data["gender"] = gender
+        context["gender"] = gender
 
-    await db.save_pending_report_data(telegram_id, "name_selection", pending_data)
+    await db.save_pending_report_data(telegram_id, "name_selection", context)
     await state.clear()
 
     if is_pro:
@@ -1023,9 +1167,10 @@ async def finalize_name_selection(
         thinking_msg = await callback.message.answer(thinking_text)
 
         profile = get_full_profile(user.name, user.birth_date)
-        content = await ai_service.generate_name_selection_report(user, profile, pending_data)
+        content = await ai_service.generate_name_selection_report(user, profile, context)
 
-        await db.save_report(telegram_id, "name_selection", content)
+        # Save as multi-instance report
+        instance_id = await db.save_report_instance(telegram_id, "name_selection", content, context)
         await db.add_purchased_report(user, "name_selection")
         await db.delete_pending_report_data(telegram_id, "name_selection")
         await db.clear_report_generating(telegram_id, "name_selection")
@@ -1041,7 +1186,7 @@ async def finalize_name_selection(
         await callback.message.answer(
             done_text,
             parse_mode="Markdown",
-            reply_markup=get_report_view_keyboard("name_selection", lang),
+            reply_markup=get_report_view_keyboard("name_selection", lang, instance_id),
         )
     else:
         # Send invoice
@@ -1110,10 +1255,10 @@ async def process_partner_birthdate(message: Message, state: FSMContext, bot: Bo
     partner_name = data.get("partner_name", "Partner")
     is_pro = data.get("is_pro", False)
 
-    # Save pending data
-    pending_data = {"name": partner_name, "birth_date": partner_birth_date.isoformat()}
+    # Context for multi-instance report
+    context = {"partner_name": partner_name, "partner_birth_date": partner_birth_date.isoformat()}
 
-    await db.save_pending_report_data(telegram_id, "compatibility_pro", pending_data)
+    await db.save_pending_report_data(telegram_id, "compatibility_pro", context)
     await state.clear()
 
     if is_pro:
@@ -1127,9 +1272,14 @@ async def process_partner_birthdate(message: Message, state: FSMContext, bot: Bo
         thinking_msg = await message.answer(thinking_text)
 
         profile = get_full_profile(user.name, user.birth_date)
+        # Use 'name' and 'birth_date' keys for AI service compatibility
+        pending_data = {"name": partner_name, "birth_date": partner_birth_date.isoformat()}
         content = await ai_service.generate_compatibility_pro_report(user, profile, pending_data)
 
-        await db.save_report(telegram_id, "compatibility_pro", content)
+        # Save as multi-instance report
+        instance_id = await db.save_report_instance(
+            telegram_id, "compatibility_pro", content, context
+        )
         await db.add_purchased_report(user, "compatibility_pro")
         await db.delete_pending_report_data(telegram_id, "compatibility_pro")
         await db.clear_report_generating(telegram_id, "compatibility_pro")
@@ -1145,7 +1295,7 @@ async def process_partner_birthdate(message: Message, state: FSMContext, bot: Bo
         await message.answer(
             done_text,
             parse_mode="Markdown",
-            reply_markup=get_report_view_keyboard("compatibility_pro", lang),
+            reply_markup=get_report_view_keyboard("compatibility_pro", lang, instance_id),
         )
     else:
         # Send invoice
@@ -1161,6 +1311,179 @@ async def process_partner_birthdate(message: Message, state: FSMContext, bot: Bo
             currency="XTR",
             prices=[LabeledPrice(label=name, amount=info["price"])],
         )
+
+
+# Year Forecast FSM handlers
+@router.callback_query(
+    F.data.startswith("forecast_year_"), ReportInputStates.waiting_for_forecast_year
+)
+async def process_forecast_year(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    """Handle year selection for forecast."""
+    year = int(callback.data.replace("forecast_year_", ""))
+
+    user = await db.get_user(callback.from_user.id)
+    lang = user.language.value if user else "ru"
+    telegram_id = callback.from_user.id
+
+    data = await state.get_data()
+    is_pro = data.get("is_pro", False)
+
+    # Context for multi-instance report
+    context = {"year": year}
+
+    await db.save_pending_report_data(telegram_id, "year_forecast", context)
+    await state.clear()
+
+    if is_pro:
+        # Check if already generating
+        if await db.is_report_generating(telegram_id, "year_forecast"):
+            await callback.answer()
+            return
+        await db.set_report_generating(telegram_id, "year_forecast")
+
+        thinking_text = "🔮 Генерирую отчёт..." if lang == "ru" else "🔮 Generating report..."
+        thinking_msg = await callback.message.answer(thinking_text)
+
+        profile = get_full_profile(user.name, user.birth_date)
+        content = await ai_service.generate_year_forecast_report(user, profile, year)
+
+        instance_id = await db.save_report_instance(
+            telegram_id, "year_forecast", content, context
+        )
+        await db.add_purchased_report(user, "year_forecast")
+        await db.delete_pending_report_data(telegram_id, "year_forecast")
+        await db.clear_report_generating(telegram_id, "year_forecast")
+        await thinking_msg.delete()
+
+        title = f"Прогноз на {year}" if lang == "ru" else f"Forecast for {year}"
+        done_text = (
+            f"✨ *{title}* готов!\n\nНажми кнопку ниже, чтобы открыть отчёт."
+            if lang == "ru"
+            else f"✨ *{title}* is ready!\n\nTap the button below to view your report."
+        )
+        await callback.message.answer(
+            done_text,
+            parse_mode="Markdown",
+            reply_markup=get_report_view_keyboard("year_forecast", lang, instance_id),
+        )
+    else:
+        info = REPORT_INFO["year_forecast"]
+        name = info["name_ru"] if lang == "ru" else info["name_en"]
+        desc = f"Премиум отчёт: {name}" if lang == "ru" else f"Premium report: {name}"
+
+        await bot.send_invoice(
+            chat_id=telegram_id,
+            title=name,
+            description=desc,
+            payload="report_year_forecast",
+            currency="XTR",
+            prices=[LabeledPrice(label=name, amount=info["price"])],
+        )
+
+    await callback.answer()
+
+
+# Date Calendar FSM handlers
+@router.callback_query(
+    F.data.startswith("calendar_month_"), ReportInputStates.waiting_for_calendar_month
+)
+async def process_calendar_month(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    """Handle month selection for calendar."""
+    parts = callback.data.replace("calendar_month_", "").split("_")
+    month = int(parts[0])
+    year = int(parts[1])
+
+    user = await db.get_user(callback.from_user.id)
+    lang = user.language.value if user else "ru"
+    telegram_id = callback.from_user.id
+
+    data = await state.get_data()
+    is_pro = data.get("is_pro", False)
+
+    # Context for multi-instance report
+    context = {"month": month, "year": year}
+
+    await db.save_pending_report_data(telegram_id, "date_calendar", context)
+    await state.clear()
+
+    if is_pro:
+        # Check if already generating
+        if await db.is_report_generating(telegram_id, "date_calendar"):
+            await callback.answer()
+            return
+        await db.set_report_generating(telegram_id, "date_calendar")
+
+        thinking_text = "🔮 Генерирую отчёт..." if lang == "ru" else "🔮 Generating report..."
+        thinking_msg = await callback.message.answer(thinking_text)
+
+        profile = get_full_profile(user.name, user.birth_date)
+        content = await ai_service.generate_date_calendar_report(user, profile, month, year)
+
+        instance_id = await db.save_report_instance(
+            telegram_id, "date_calendar", content, context
+        )
+        await db.add_purchased_report(user, "date_calendar")
+        await db.delete_pending_report_data(telegram_id, "date_calendar")
+        await db.clear_report_generating(telegram_id, "date_calendar")
+        await thinking_msg.delete()
+
+        month_names_ru = [
+            "",
+            "Январь",
+            "Февраль",
+            "Март",
+            "Апрель",
+            "Май",
+            "Июнь",
+            "Июль",
+            "Август",
+            "Сентябрь",
+            "Октябрь",
+            "Ноябрь",
+            "Декабрь",
+        ]
+        month_names_en = [
+            "",
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ]
+        month_name = month_names_ru[month] if lang == "ru" else month_names_en[month]
+        title = f"Календарь на {month_name} {year}" if lang == "ru" else f"Calendar for {month_name} {year}"
+        done_text = (
+            f"✨ *{title}* готов!\n\nНажми кнопку ниже, чтобы открыть отчёт."
+            if lang == "ru"
+            else f"✨ *{title}* is ready!\n\nTap the button below to view your report."
+        )
+        await callback.message.answer(
+            done_text,
+            parse_mode="Markdown",
+            reply_markup=get_report_view_keyboard("date_calendar", lang, instance_id),
+        )
+    else:
+        info = REPORT_INFO["date_calendar"]
+        name = info["name_ru"] if lang == "ru" else info["name_en"]
+        desc = f"Премиум отчёт: {name}" if lang == "ru" else f"Premium report: {name}"
+
+        await bot.send_invoice(
+            chat_id=telegram_id,
+            title=name,
+            description=desc,
+            payload="report_date_calendar",
+            currency="XTR",
+            prices=[LabeledPrice(label=name, amount=info["price"])],
+        )
+
+    await callback.answer()
 
 
 @router.message(Command("help"))

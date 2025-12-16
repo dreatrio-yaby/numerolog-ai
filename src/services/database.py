@@ -12,6 +12,9 @@ from src.models.user import Language, Payment, SubscriptionType, User
 
 settings = get_settings()
 
+# Report types that support multiple instances with context
+MULTI_INSTANCE_REPORTS = {"compatibility_pro", "name_selection", "year_forecast", "date_calendar"}
+
 
 class DatabaseService:
     """DynamoDB database service."""
@@ -280,7 +283,23 @@ class DatabaseService:
         telegram_id: int,
         report_type: str,
     ) -> Optional[str]:
-        """Get saved report content."""
+        """Get saved report content.
+
+        For multi-instance reports, returns the latest instance.
+        For backward compatibility with existing code.
+        """
+        if report_type in MULTI_INSTANCE_REPORTS:
+            # Check for multi-instance reports first
+            instances = await self.get_report_instances(telegram_id, report_type)
+            if instances:
+                instance = await self.get_report_instance(
+                    telegram_id, report_type, instances[0]["instance_id"]
+                )
+                if instance:
+                    return instance.get("content")
+            return None
+
+        # Single-instance report (legacy format)
         response = self.reports_table.get_item(
             Key={
                 "PK": f"USER#{telegram_id}",
@@ -296,8 +315,28 @@ class DatabaseService:
         self,
         telegram_id: int,
         report_type: str,
+        instance_id: Optional[str] = None,
     ) -> Optional[dict]:
-        """Get saved report with metadata (content, created_at)."""
+        """Get saved report with metadata (content, created_at).
+
+        For multi-instance reports, if instance_id is provided, returns that instance.
+        Otherwise returns the latest instance.
+        For single-instance reports, returns the only instance.
+        """
+        if report_type in MULTI_INSTANCE_REPORTS:
+            if instance_id:
+                # Get specific instance
+                return await self.get_report_instance(telegram_id, report_type, instance_id)
+            else:
+                # Get latest instance
+                instances = await self.get_report_instances(telegram_id, report_type)
+                if instances:
+                    return await self.get_report_instance(
+                        telegram_id, report_type, instances[0]["instance_id"]
+                    )
+                return None
+
+        # Single-instance report (legacy format)
         response = self.reports_table.get_item(
             Key={
                 "PK": f"USER#{telegram_id}",
@@ -311,6 +350,114 @@ class DatabaseService:
                 "created_at": item.get("created_at"),
             }
         return None
+
+    # Multi-instance report methods
+
+    async def save_report_instance(
+        self,
+        telegram_id: int,
+        report_type: str,
+        content: str,
+        context: dict,
+    ) -> str:
+        """Save report with context for multi-instance reports.
+
+        Returns the generated instance_id.
+        """
+        instance_id = str(uuid.uuid4())[:8]
+        self.reports_table.put_item(
+            Item={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"REPORT#{report_type}#{instance_id}",
+                "report_type": report_type,
+                "instance_id": instance_id,
+                "content": content,
+                "context": context,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        )
+        return instance_id
+
+    async def get_report_instances(
+        self,
+        telegram_id: int,
+        report_type: str,
+    ) -> list[dict]:
+        """Get all instances of a multi-instance report type.
+
+        Returns list of {instance_id, context, created_at} sorted by created_at desc.
+        Does NOT include content to minimize data transfer.
+        """
+        response = self.reports_table.query(
+            KeyConditionExpression=(
+                Key("PK").eq(f"USER#{telegram_id}") &
+                Key("SK").begins_with(f"REPORT#{report_type}#")
+            ),
+        )
+
+        instances = []
+        for item in response.get("Items", []):
+            instances.append({
+                "instance_id": item.get("instance_id"),
+                "context": item.get("context", {}),
+                "created_at": item.get("created_at"),
+            })
+
+        # Sort by created_at descending (newest first)
+        instances.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return instances
+
+    async def get_report_instance(
+        self,
+        telegram_id: int,
+        report_type: str,
+        instance_id: str,
+    ) -> Optional[dict]:
+        """Get specific report instance with full content."""
+        response = self.reports_table.get_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"REPORT#{report_type}#{instance_id}",
+            }
+        )
+        item = response.get("Item")
+        if item:
+            return {
+                "instance_id": item.get("instance_id"),
+                "content": item.get("content"),
+                "context": item.get("context", {}),
+                "created_at": item.get("created_at"),
+            }
+        return None
+
+    async def delete_report_instance(
+        self,
+        telegram_id: int,
+        report_type: str,
+        instance_id: str,
+    ) -> None:
+        """Delete specific report instance."""
+        self.reports_table.delete_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"REPORT#{report_type}#{instance_id}",
+            }
+        )
+
+    async def get_report_instance_count(
+        self,
+        telegram_id: int,
+        report_type: str,
+    ) -> int:
+        """Get count of report instances for a type."""
+        response = self.reports_table.query(
+            KeyConditionExpression=(
+                Key("PK").eq(f"USER#{telegram_id}") &
+                Key("SK").begins_with(f"REPORT#{report_type}#")
+            ),
+            Select="COUNT",
+        )
+        return response.get("Count", 0)
 
     # Pending report data (for reports that need additional input before purchase)
 

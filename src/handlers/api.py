@@ -36,6 +36,7 @@ AVAILABLE_REPORTS = [
         "name_en": "Full Portrait",
         "price": 120,
         "requires_input": None,
+        "multi_instance": False,
     },
     {
         "id": "financial_code",
@@ -43,20 +44,23 @@ AVAILABLE_REPORTS = [
         "name_en": "Financial Code",
         "price": 150,
         "requires_input": None,
+        "multi_instance": False,
     },
     {
         "id": "date_calendar",
         "name_ru": "Календарь дат",
         "name_en": "Date Calendar",
         "price": 130,
-        "requires_input": None,
+        "requires_input": "month_year",
+        "multi_instance": True,
     },
     {
         "id": "year_forecast",
         "name_ru": "Прогноз на год",
         "name_en": "Year Forecast",
         "price": 150,
-        "requires_input": None,
+        "requires_input": "year",
+        "multi_instance": True,
     },
     {
         "id": "name_selection",
@@ -64,6 +68,7 @@ AVAILABLE_REPORTS = [
         "name_en": "Name Selection",
         "price": 140,
         "requires_input": "name_context",
+        "multi_instance": True,
     },
     {
         "id": "compatibility_pro",
@@ -71,6 +76,7 @@ AVAILABLE_REPORTS = [
         "name_en": "Compatibility PRO",
         "price": 150,
         "requires_input": "partner_data",
+        "multi_instance": True,
     },
 ]
 
@@ -123,7 +129,7 @@ def cors_response(status_code: int, body: Any) -> dict:
         "headers": {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "https://dreatrio-yaby.github.io",
-            "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, X-Telegram-Init-Data",
         },
         "body": json.dumps(body) if body else "",
@@ -266,35 +272,48 @@ async def handle_get_reports(telegram_id: int) -> dict:
 
     reports = []
     for report in AVAILABLE_REPORTS:
+        report_id = report["id"]
+        is_multi = report.get("multi_instance", False)
+
         status = "available"
-        if report["id"] in user.purchased_reports:
+        if report_id in user.purchased_reports:
             status = "purchased"
         elif is_pro:
             status = "included_in_pro"
 
-        # Check if report content exists in database
-        is_generated = False
-        if status in ("purchased", "included_in_pro"):
-            report_content = await db.get_report(telegram_id, report["id"])
-            is_generated = report_content is not None
+        report_data = {
+            "id": report_id,
+            "name_ru": report["name_ru"],
+            "name_en": report["name_en"],
+            "price": report["price"],
+            "status": status,
+            "requires_input": report["requires_input"],
+            "multi_instance": is_multi,
+        }
 
-        reports.append(
-            {
-                "id": report["id"],
-                "name_ru": report["name_ru"],
-                "name_en": report["name_en"],
-                "price": report["price"],
-                "status": status,
-                "requires_input": report["requires_input"],
-                "is_generated": is_generated,
-            }
-        )
+        # For multi-instance reports, get all instances
+        if is_multi and status in ("purchased", "included_in_pro"):
+            instances = await db.get_report_instances(telegram_id, report_id)
+            report_data["instances"] = instances
+            report_data["instance_count"] = len(instances)
+            report_data["is_generated"] = len(instances) > 0
+        else:
+            # Check if single-instance report content exists
+            is_generated = False
+            if status in ("purchased", "included_in_pro"):
+                report_content = await db.get_report(telegram_id, report_id)
+                is_generated = report_content is not None
+            report_data["is_generated"] = is_generated
+
+        reports.append(report_data)
 
     return cors_response(200, {"reports": reports})
 
 
-async def handle_get_report_content(telegram_id: int, report_id: str) -> dict:
-    """Handle GET /api/reports/{report_id} - get full report content."""
+async def handle_get_report_content(
+    telegram_id: int, report_id: str, instance_id: str = None
+) -> dict:
+    """Handle GET /api/reports/{report_id} or GET /api/reports/{report_id}/{instance_id}."""
     user = await db.get_user(telegram_id)
     if not user:
         return error_response(404, "User not found")
@@ -311,22 +330,67 @@ async def handle_get_report_content(telegram_id: int, report_id: str) -> dict:
     if not has_access:
         return error_response(403, "Report not purchased")
 
+    is_multi = report_meta.get("multi_instance", False)
+
     # Get report content from database
-    report_data = await db.get_report_with_metadata(telegram_id, report_id)
+    if is_multi:
+        report_data = await db.get_report_with_metadata(telegram_id, report_id, instance_id)
+    else:
+        report_data = await db.get_report_with_metadata(telegram_id, report_id)
+
     if not report_data:
         return error_response(404, "Report not generated yet")
 
-    # Return report with metadata
-    return cors_response(
-        200,
-        {
-            "id": report_id,
-            "title_ru": report_meta["name_ru"],
-            "title_en": report_meta["name_en"],
-            "content": report_data["content"],
-            "generated_at": report_data["created_at"],
-        },
-    )
+    # Build response
+    response = {
+        "id": report_id,
+        "title_ru": report_meta["name_ru"],
+        "title_en": report_meta["name_en"],
+        "content": report_data["content"],
+        "generated_at": report_data.get("created_at"),
+    }
+
+    # Add instance-specific data for multi-instance reports
+    if is_multi:
+        response["instance_id"] = report_data.get("instance_id")
+        response["context"] = report_data.get("context", {})
+
+    return cors_response(200, response)
+
+
+async def handle_delete_report_instance(
+    telegram_id: int, report_id: str, instance_id: str
+) -> dict:
+    """Handle DELETE /api/reports/{report_id}/{instance_id} - delete report instance."""
+    user = await db.get_user(telegram_id)
+    if not user:
+        return error_response(404, "User not found")
+
+    # Find report metadata
+    report_meta = next((r for r in AVAILABLE_REPORTS if r["id"] == report_id), None)
+    if not report_meta:
+        return error_response(404, "Unknown report type")
+
+    # Only multi-instance reports can be deleted
+    if not report_meta.get("multi_instance", False):
+        return error_response(400, "Cannot delete single-instance report")
+
+    # Check if user has access
+    is_pro = user.subscription_type.value == "pro" and user.is_premium()
+    has_access = report_id in user.purchased_reports or is_pro
+
+    if not has_access:
+        return error_response(403, "Report not purchased")
+
+    # Check if instance exists
+    instance_data = await db.get_report_instance(telegram_id, report_id, instance_id)
+    if not instance_data:
+        return error_response(404, "Report instance not found")
+
+    # Delete the instance
+    await db.delete_report_instance(telegram_id, report_id, instance_id)
+
+    return cors_response(200, {"success": True})
 
 
 async def handle_create_invoice(telegram_id: int, body: dict) -> dict:
@@ -421,10 +485,18 @@ async def api_handler(event: dict) -> dict:
         return await handle_get_payments(telegram_id)
     elif path.endswith("/api/reports") and method == "GET":
         return await handle_get_reports(telegram_id)
-    elif "/api/reports/" in path and method == "GET":
-        # GET /api/reports/{report_id} - get specific report content
-        report_id = path.split("/api/reports/")[-1].split("/")[0]
-        return await handle_get_report_content(telegram_id, report_id)
+    elif "/api/reports/" in path:
+        # Parse path: /api/reports/{report_id} or /api/reports/{report_id}/{instance_id}
+        path_parts = path.split("/api/reports/")[-1].split("/")
+        report_id = path_parts[0] if path_parts else None
+        instance_id = path_parts[1] if len(path_parts) > 1 and path_parts[1] else None
+
+        if method == "GET":
+            return await handle_get_report_content(telegram_id, report_id, instance_id)
+        elif method == "DELETE" and instance_id:
+            return await handle_delete_report_instance(telegram_id, report_id, instance_id)
+        else:
+            return error_response(405, "Method not allowed")
     elif path.endswith("/api/invoice") and method == "POST":
         return await handle_create_invoice(telegram_id, body)
     else:

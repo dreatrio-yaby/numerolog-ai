@@ -331,6 +331,8 @@ const App = {
             const requiresInput = r.requires_input !== null;
             const isAccessible = r.status === 'purchased' || r.status === 'included_in_pro';
             const isGenerated = r.is_generated === true;
+            const isMulti = r.multi_instance === true;
+            const instanceCount = r.instance_count || 0;
             let statusText = '';
             let statusClass = '';
 
@@ -342,7 +344,12 @@ const App = {
                 statusClass = 'included';
             }
 
-            // Button text based on status and generation state
+            // For multi-instance reports with instances, render expandable card
+            if (isMulti && isAccessible && instanceCount > 0) {
+                return this.renderMultiInstanceReport(r, name, desc, statusText, statusClass);
+            }
+
+            // Single-instance or no instances yet
             let btnText;
             if (isAccessible && isGenerated) {
                 btnText = this.t('btn_open');
@@ -360,15 +367,15 @@ const App = {
                         ${requiresInput && !isAccessible ? `<span class="report-note">${this.t('report_requires_input')}</span>` : ''}
                         ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
                     </div>
-                    <button class="report-btn" data-report="${r.id}" data-accessible="${isAccessible}" data-generated="${isGenerated}">
+                    <button class="report-btn" data-report="${r.id}" data-accessible="${isAccessible}" data-generated="${isGenerated}" data-multi="false">
                         ${btnText}
                     </button>
                 </div>
             `;
         }).join('');
 
-        // Add click handlers
-        list.querySelectorAll('.report-btn').forEach(btn => {
+        // Add click handlers for single-instance reports
+        list.querySelectorAll('.report-btn:not([data-instance])').forEach(btn => {
             btn.addEventListener('click', () => {
                 const reportId = btn.getAttribute('data-report');
                 const isAccessible = btn.getAttribute('data-accessible') === 'true';
@@ -386,6 +393,152 @@ const App = {
                 }
             });
         });
+
+        // Add handlers for multi-instance expandable headers
+        list.querySelectorAll('.report-header-expandable').forEach(header => {
+            header.addEventListener('click', () => {
+                const item = header.closest('.report-item-multi');
+                item.classList.toggle('expanded');
+                TelegramApp.hapticFeedback('light');
+            });
+        });
+
+        // Add handlers for instance open buttons
+        list.querySelectorAll('.instance-open-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const reportId = btn.getAttribute('data-report');
+                const instanceId = btn.getAttribute('data-instance');
+                TelegramApp.hapticFeedback('light');
+                window.location.href = `report.html?id=${reportId}&instance=${instanceId}`;
+            });
+        });
+
+        // Add handlers for instance delete buttons
+        list.querySelectorAll('.instance-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const reportId = btn.getAttribute('data-report');
+                const instanceId = btn.getAttribute('data-instance');
+
+                TelegramApp.hapticFeedback('medium');
+
+                const confirmed = await new Promise(resolve => {
+                    TelegramApp.showConfirm(this.t('confirm_delete_report'), resolve);
+                });
+
+                if (confirmed) {
+                    await API.deleteReportInstance(reportId, instanceId);
+                    TelegramApp.hapticFeedback('success');
+                    // Re-render reports
+                    await this.renderReports();
+                }
+            });
+        });
+
+        // Add handlers for create new buttons
+        list.querySelectorAll('.create-new-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const reportId = btn.getAttribute('data-report');
+                TelegramApp.hapticFeedback('light');
+                TelegramApp.openTelegramLink(`https://t.me/NumeroChatBot?start=report_${reportId}`);
+                TelegramApp.close();
+            });
+        });
+    },
+
+    /** Render multi-instance report with expandable list */
+    renderMultiInstanceReport(report, name, desc, statusText, statusClass) {
+        const instances = report.instances || [];
+        const countText = this.lang === 'ru' ? `${instances.length} отчётов` : `${instances.length} reports`;
+
+        return `
+            <div class="report-item report-item-multi">
+                <div class="report-header-expandable">
+                    <div class="report-info">
+                        <span class="report-name">${name}</span>
+                        ${desc ? `<span class="report-desc">${desc}</span>` : ''}
+                        ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
+                    </div>
+                    <div class="report-expand-info">
+                        <span class="instance-count">${countText}</span>
+                        <span class="expand-icon">▼</span>
+                    </div>
+                </div>
+                <div class="instances-list">
+                    ${instances.map(inst => this.renderReportInstance(report.id, inst)).join('')}
+                    <button class="create-new-btn" data-report="${report.id}">
+                        + ${this.t('btn_create_new')}
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    /** Render single instance item */
+    renderReportInstance(reportId, instance) {
+        const contextLabel = this.getInstanceContextLabel(reportId, instance.context);
+        const date = instance.created_at ? this.formatDate(instance.created_at.split('T')[0]) : '';
+
+        return `
+            <div class="instance-item">
+                <div class="instance-info">
+                    <span class="instance-context">${contextLabel}</span>
+                    <span class="instance-date">${date}</span>
+                </div>
+                <div class="instance-actions">
+                    <button class="instance-open-btn" data-report="${reportId}" data-instance="${instance.instance_id}">
+                        ${this.t('btn_open')}
+                    </button>
+                    <button class="instance-delete-btn" data-report="${reportId}" data-instance="${instance.instance_id}">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    /** Get human-readable label for instance context */
+    getInstanceContextLabel(reportId, context) {
+        if (!context) return '';
+
+        if (reportId === 'compatibility_pro') {
+            const name = context.partner_name || context.name || '';
+            const date = context.partner_birth_date || context.birth_date || '';
+            if (name && date) {
+                return `${name} (${this.formatDate(date)})`;
+            }
+            return name || this.t('partner');
+        }
+
+        if (reportId === 'name_selection') {
+            const purpose = context.purpose;
+            const gender = context.gender;
+            if (purpose === 'child') {
+                const genderText = gender === 'male' ? this.t('boy') : gender === 'female' ? this.t('girl') : '';
+                return genderText ? `${this.t('for_child')} (${genderText})` : this.t('for_child');
+            }
+            if (purpose === 'business') return this.t('for_business');
+            if (purpose === 'self') return this.t('for_self');
+            return '';
+        }
+
+        if (reportId === 'year_forecast') {
+            return context.year ? `${context.year}` : '';
+        }
+
+        if (reportId === 'date_calendar') {
+            if (context.month && context.year) {
+                const monthNames = this.lang === 'ru'
+                    ? ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+                    : ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                return `${monthNames[context.month]} ${context.year}`;
+            }
+            return '';
+        }
+
+        return '';
     },
 
     /** Handle setting change */
