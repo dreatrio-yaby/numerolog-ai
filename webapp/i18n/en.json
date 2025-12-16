@@ -22,6 +22,11 @@
 
     "matrix_title": "Pythagoras Matrix",
 
+    "interpretation_title": "AI Interpretation",
+    "btn_get_interpretation": "Get Interpretation",
+    "interpretation_error": "Failed to load interpretation",
+    "btn_retry": "Try Again",
+
     "settings_title": "Settings",
     "setting_language": "Language",
     "setting_notifications": "Notifications",
@@ -73,6 +78,21 @@
     "boy": "boy",
     "girl": "girl",
 
+    "purpose": "Purpose",
+    "gender": "Gender",
+    "partner_name": "Partner's name",
+    "enter_name": "Enter name",
+    "name_selection_title": "Name Selection",
+    "compatibility_pro_title": "Compatibility PRO",
+    "year_forecast_title": "Year Forecast",
+    "date_calendar_title": "Date Calendar",
+    "select_year": "Select year",
+    "select_month": "Select month",
+    "fill_all_fields": "Fill in all fields",
+    "generating_report": "Generating report...",
+    "report_generating_wait": "Report is being generated. This may take a minute...",
+    "error_generating": "Error generating report",
+
     "link_copied": "Link copied!",
     "share_text": "Try AI Numerologist! Discover your numbers 🔮",
     "settings_saved": "Settings saved!",
@@ -84,5 +104,16 @@
     "error_saving": "Failed to save",
     "error_purchase": "Failed to create invoice",
 
-    "complete_onboarding": "Enter your name and birth date in the bot chat"
+    "complete_onboarding": "Enter your name and birth date in the bot chat",
+
+    "compatibility_title": "Compatibility",
+    "overall_compatibility": "Overall Compatibility",
+    "life_path_compat": "Life Path",
+    "soul_compat": "Soul Number",
+    "partner_birthdate": "Partner's birth date:",
+    "get_pro_analysis": "Get PRO Analysis",
+    "check_another": "Check Another",
+    "analyzing": "Analyzing...",
+    "interpretation_unavailable": "Interpretation unavailable",
+    "error_loading_result": "Failed to load result"
 }

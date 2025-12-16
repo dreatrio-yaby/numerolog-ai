@@ -1000,7 +1000,7 @@ Provide 15-20 pseudonym options with analysis."""
    - Совместный бюджет: плюсы и минусы
    - Как избежать денежных конфликтов
 
-6. 👨‍👩‍👧‍👦 СЕМЬЯ И ДЕТИ
+6. 👪 СЕМЬЯ И ДЕТИ
    - Потенциал как родители
    - Стили воспитания
    - Семейные ценности
@@ -1047,7 +1047,7 @@ REPORT STRUCTURE:
 3. 💬 EMOTIONAL CONNECTION
 4. 🏠 DAILY LIFE COMPATIBILITY
 5. 💰 FINANCIAL COMPATIBILITY
-6. 👨‍👩‍👧‍👦 FAMILY AND CHILDREN
+6. 👪 FAMILY AND CHILDREN
 7. ⚠️ CONFLICT ZONES
 8. 💪 COUPLE'S STRENGTHS
 9. 🎯 RECOMMENDATIONS (5 for each person + 5 for doing together)
