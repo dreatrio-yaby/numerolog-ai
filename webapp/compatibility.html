@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Compatibility Result</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/compatibility.css">
+</head>
+<body>
+    <div id="compat-app">
+        <!-- Loading state -->
+        <div id="compat-loading" class="compat-loading">
+            <div class="spinner"></div>
+            <p id="loading-text">Загружаем результат...</p>
+        </div>
+
+        <!-- Error state -->
+        <div id="compat-error" class="compat-error" style="display: none;">
+            <div class="error-icon">⚠️</div>
+            <p id="error-text">Не удалось загрузить результат</p>
+            <button id="error-back-btn" class="back-button">Назад</button>
+        </div>
+
+        <!-- Compatibility content -->
+        <div id="compat-content" class="compat-content" style="display: none;">
+            <!-- Header -->
+            <header class="compat-header">
+                <button id="header-back-btn" class="header-back-btn" aria-label="Back">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <div class="compat-header-content">
+                    <div class="compat-icon">💑</div>
+                    <h1 class="compat-title" id="compat-title">Совместимость</h1>
+                </div>
+            </header>
+
+            <!-- Score Circle -->
+            <div class="score-section">
+                <div class="score-circle">
+                    <svg viewBox="0 0 120 120">
+                        <circle class="score-bg" cx="60" cy="60" r="54"/>
+                        <circle class="score-progress" cx="60" cy="60" r="54" id="score-ring"/>
+                    </svg>
+                    <div class="score-value">
+                        <span id="overall-score">0</span><span class="percent">%</span>
+                    </div>
+                </div>
+                <p class="score-label" id="score-label">Общая совместимость</p>
+            </div>
+
+            <!-- Breakdown -->
+            <div class="breakdown-section">
+                <div class="breakdown-item">
+                    <div class="breakdown-icon">🔮</div>
+                    <div class="breakdown-info">
+                        <span class="breakdown-label" id="life-path-label">Число судьбы</span>
+                        <div class="breakdown-bar">
+                            <div class="breakdown-fill" id="life-path-fill"></div>
+                        </div>
+                    </div>
+                    <span class="breakdown-value" id="life-path-score">0%</span>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-icon">💫</div>
+                    <div class="breakdown-info">
+                        <span class="breakdown-label" id="soul-label">Число души</span>
+                        <div class="breakdown-bar">
+                            <div class="breakdown-fill" id="soul-fill"></div>
+                        </div>
+                    </div>
+                    <span class="breakdown-value" id="soul-score">0%</span>
+                </div>
+            </div>
+
+            <!-- Partner info -->
+            <div class="partner-section">
+                <span class="partner-label" id="partner-label">Дата партнёра:</span>
+                <span class="partner-value" id="partner-date"></span>
+            </div>
+
+            <!-- AI Interpretation -->
+            <div class="interpretation-section" id="interpretation-section">
+                <div class="interpretation-loading" id="interpretation-loading">
+                    <div class="spinner-small"></div>
+                    <span id="interpretation-loading-text">Анализируем...</span>
+                </div>
+                <div class="interpretation-content" id="interpretation-content" style="display: none;">
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions-section">
+                <button id="pro-btn" class="btn-primary">
+                    <span id="pro-btn-text">Получить PRO анализ</span>
+                </button>
+                <button id="new-check-btn" class="btn-secondary">
+                    <span id="new-check-text">Проверить другого</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/telegram.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/compatibility.js"></script>
+</body>
+</html>

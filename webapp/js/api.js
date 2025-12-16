@@ -74,6 +74,53 @@ const API = {
             method: 'POST',
             body: JSON.stringify({ type })
         });
+    },
+
+    // Compatibility endpoints
+
+    /** GET /api/compatibility - Get compatibility history */
+    async getCompatibilityHistory() {
+        return this.request('/compatibility', { method: 'GET' });
+    },
+
+    /** GET /api/compatibility/{id} - Get specific result */
+    async getCompatibilityResult(resultId) {
+        return this.request(`/compatibility/${resultId}`, { method: 'GET' });
+    },
+
+    /** POST /api/compatibility - Create new compatibility check */
+    async createCompatibility(partnerDate) {
+        return this.request('/compatibility', {
+            method: 'POST',
+            body: JSON.stringify({ partner_date: partnerDate })
+        });
+    },
+
+    /** POST /api/compatibility/{id}/interpret - Get AI interpretation */
+    async getCompatibilityInterpretation(resultId) {
+        return this.request(`/compatibility/${resultId}/interpret`, { method: 'POST' });
+    },
+
+    /** DELETE /api/compatibility/{id} - Delete compatibility result */
+    async deleteCompatibility(resultId) {
+        return this.request(`/compatibility/${resultId}`, { method: 'DELETE' });
+    },
+
+    // Report generation
+
+    /** POST /api/reports/{id}/generate - Generate report with context */
+    async generateReport(reportId, context = {}) {
+        return this.request(`/reports/${reportId}/generate`, {
+            method: 'POST',
+            body: JSON.stringify({ context })
+        });
+    },
+
+    // Profile interpretation
+
+    /** GET /api/user/interpretation - Get profile AI interpretation */
+    async getProfileInterpretation() {
+        return this.request('/user/interpretation', { method: 'GET' });
     }
 };
 

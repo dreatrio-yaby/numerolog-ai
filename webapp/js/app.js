@@ -42,6 +42,25 @@ const App = {
 
         // Hide loading
         document.getElementById('loading').classList.add('hidden');
+
+        // Handle URL parameters for deep linking
+        this.handleDeepLinks();
+    },
+
+    /** Handle deep links from URL parameters */
+    handleDeepLinks() {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        const reportId = params.get('report');
+
+        if (tab) {
+            this.switchTab(tab);
+        }
+
+        if (reportId) {
+            // Open report input form after a short delay
+            setTimeout(() => this.showReportInputForm(reportId), 300);
+        }
     },
 
     /** Load translations */
@@ -125,6 +144,20 @@ const App = {
         document.getElementById('share-link')?.addEventListener('click', () => {
             const link = document.getElementById('referral-link').value;
             TelegramApp.shareUrl(link, this.t('share_text'));
+        });
+
+        // Modal close handlers
+        document.getElementById('modal-close')?.addEventListener('click', () => {
+            this.closeModal();
+        });
+        document.getElementById('modal-backdrop')?.addEventListener('click', () => {
+            this.closeModal();
+        });
+
+        // Profile interpretation
+        document.getElementById('get-interpretation')?.addEventListener('click', () => {
+            TelegramApp.hapticFeedback('light');
+            this.loadProfileInterpretation();
         });
     },
 
@@ -386,10 +419,12 @@ const App = {
                 if (isAccessible && isGenerated) {
                     // Open report in premium view
                     window.location.href = `report.html?id=${reportId}`;
+                } else if (isAccessible && !isGenerated) {
+                    // Show input form in Mini App for generation
+                    this.showReportInputForm(reportId);
                 } else {
-                    // Redirect to bot for purchase or generation
-                    TelegramApp.openTelegramLink(`https://t.me/NumeroChatBot?start=report_${reportId}`);
-                    TelegramApp.close();
+                    // Not purchased - create invoice
+                    this.handleBuy(`report_${reportId}`);
                 }
             });
         });
@@ -442,8 +477,8 @@ const App = {
                 e.stopPropagation();
                 const reportId = btn.getAttribute('data-report');
                 TelegramApp.hapticFeedback('light');
-                TelegramApp.openTelegramLink(`https://t.me/NumeroChatBot?start=report_${reportId}`);
-                TelegramApp.close();
+                // Show input form in Mini App
+                this.showReportInputForm(reportId);
             });
         });
     },
@@ -629,6 +664,261 @@ const App = {
             report_compatibility_pro: this.t('report_compatibility_pro')
         };
         return names[type] || type;
+    },
+
+    // ========== Modal & Report Forms ==========
+
+    /** Show report input form modal */
+    showReportInputForm(reportId) {
+        const modal = document.getElementById('report-modal');
+        const body = document.getElementById('modal-body');
+
+        let formHtml = '';
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+
+        if (reportId === 'name_selection') {
+            formHtml = `
+                <h3>${this.t('name_selection_title')}</h3>
+                <div class="form-group">
+                    <label>${this.t('purpose')}</label>
+                    <select id="form-name-purpose">
+                        <option value="child">${this.t('for_child')}</option>
+                        <option value="business">${this.t('for_business')}</option>
+                        <option value="self">${this.t('for_self')}</option>
+                    </select>
+                </div>
+                <div class="form-group" id="form-gender-group" style="display:none;">
+                    <label>${this.t('gender')}</label>
+                    <select id="form-child-gender">
+                        <option value="male">${this.t('boy')}</option>
+                        <option value="female">${this.t('girl')}</option>
+                    </select>
+                </div>
+                <button class="form-submit-btn" id="form-submit">${this.t('btn_create')}</button>
+            `;
+        } else if (reportId === 'compatibility_pro') {
+            formHtml = `
+                <h3>${this.t('compatibility_pro_title')}</h3>
+                <div class="form-group">
+                    <label>${this.t('partner_name')}</label>
+                    <input type="text" id="form-partner-name" placeholder="${this.t('enter_name')}">
+                </div>
+                <div class="form-group">
+                    <label>${this.t('partner_birthdate')}</label>
+                    <input type="date" id="form-partner-birthdate">
+                </div>
+                <button class="form-submit-btn" id="form-submit">${this.t('btn_create')}</button>
+            `;
+        } else if (reportId === 'year_forecast') {
+            formHtml = `
+                <h3>${this.t('year_forecast_title')}</h3>
+                <div class="form-group">
+                    <label>${this.t('select_year')}</label>
+                    <select id="form-forecast-year">
+                        <option value="${currentYear}">${currentYear}</option>
+                        <option value="${currentYear + 1}">${currentYear + 1}</option>
+                    </select>
+                </div>
+                <button class="form-submit-btn" id="form-submit">${this.t('btn_create')}</button>
+            `;
+        } else if (reportId === 'date_calendar') {
+            const monthNames = this.lang === 'ru'
+                ? ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+                : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+            let monthOptions = '';
+            for (let i = 0; i < 12; i++) {
+                const m = ((currentMonth - 1 + i) % 12) + 1;
+                const y = currentYear + Math.floor((currentMonth - 1 + i) / 12);
+                monthOptions += `<option value="${m}-${y}">${monthNames[m - 1]} ${y}</option>`;
+            }
+
+            formHtml = `
+                <h3>${this.t('date_calendar_title')}</h3>
+                <div class="form-group">
+                    <label>${this.t('select_month')}</label>
+                    <select id="form-calendar-month">${monthOptions}</select>
+                </div>
+                <button class="form-submit-btn" id="form-submit">${this.t('btn_create')}</button>
+            `;
+        } else if (reportId === 'full_portrait' || reportId === 'financial_code') {
+            // Single-instance, no form needed - generate directly
+            this.submitReportGeneration(reportId, {});
+            return;
+        } else {
+            this.closeModal();
+            return;
+        }
+
+        body.innerHTML = formHtml;
+        modal.classList.remove('hidden');
+
+        this.setupReportFormHandlers(reportId);
+    },
+
+    /** Setup form handlers for report input */
+    setupReportFormHandlers(reportId) {
+        if (reportId === 'name_selection') {
+            document.getElementById('form-name-purpose')?.addEventListener('change', (e) => {
+                const genderGroup = document.getElementById('form-gender-group');
+                genderGroup.style.display = e.target.value === 'child' ? 'block' : 'none';
+            });
+
+            document.getElementById('form-submit')?.addEventListener('click', () => {
+                const purpose = document.getElementById('form-name-purpose').value;
+                const gender = purpose === 'child'
+                    ? document.getElementById('form-child-gender').value
+                    : null;
+                this.submitReportGeneration('name_selection', { purpose, gender });
+            });
+        } else if (reportId === 'compatibility_pro') {
+            document.getElementById('form-submit')?.addEventListener('click', () => {
+                const partnerName = document.getElementById('form-partner-name').value;
+                const partnerBirthdate = document.getElementById('form-partner-birthdate').value;
+
+                if (!partnerName || !partnerBirthdate) {
+                    TelegramApp.showAlert(this.t('fill_all_fields'));
+                    return;
+                }
+
+                this.submitReportGeneration('compatibility_pro', {
+                    partner_name: partnerName,
+                    partner_birth_date: partnerBirthdate
+                });
+            });
+        } else if (reportId === 'year_forecast') {
+            document.getElementById('form-submit')?.addEventListener('click', () => {
+                const year = parseInt(document.getElementById('form-forecast-year').value);
+                this.submitReportGeneration('year_forecast', { year });
+            });
+        } else if (reportId === 'date_calendar') {
+            document.getElementById('form-submit')?.addEventListener('click', () => {
+                const value = document.getElementById('form-calendar-month').value;
+                const [month, year] = value.split('-').map(Number);
+                this.submitReportGeneration('date_calendar', { month, year });
+            });
+        }
+    },
+
+    /** Submit report generation request */
+    async submitReportGeneration(reportId, context) {
+        const modal = document.getElementById('report-modal');
+        const body = document.getElementById('modal-body');
+
+        // Show loading
+        body.innerHTML = `
+            <div class="modal-loading">
+                <div class="spinner"></div>
+                <p>${this.t('generating_report')}</p>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+
+        const result = await API.generateReport(reportId, context);
+
+        if (result.status === 'completed') {
+            TelegramApp.hapticFeedback('success');
+            this.closeModal();
+
+            // Navigate to report
+            const url = result.instance_id
+                ? `report.html?id=${reportId}&instance=${result.instance_id}`
+                : `report.html?id=${reportId}`;
+            window.location.href = url;
+        } else if (result.status === 'generating') {
+            // Report is being generated, wait and retry
+            body.innerHTML = `
+                <div class="modal-loading">
+                    <div class="spinner"></div>
+                    <p>${this.t('report_generating_wait')}</p>
+                </div>
+            `;
+            // Poll for completion
+            setTimeout(() => this.pollReportStatus(reportId, context), 3000);
+        } else {
+            TelegramApp.hapticFeedback('error');
+            TelegramApp.showAlert(this.t('error_generating'));
+            this.closeModal();
+        }
+    },
+
+    /** Poll for report generation status */
+    async pollReportStatus(reportId, context) {
+        const result = await API.generateReport(reportId, context);
+
+        if (result.status === 'completed') {
+            TelegramApp.hapticFeedback('success');
+            this.closeModal();
+            const url = result.instance_id
+                ? `report.html?id=${reportId}&instance=${result.instance_id}`
+                : `report.html?id=${reportId}`;
+            window.location.href = url;
+        } else if (result.status === 'generating') {
+            setTimeout(() => this.pollReportStatus(reportId, context), 3000);
+        } else {
+            TelegramApp.hapticFeedback('error');
+            TelegramApp.showAlert(this.t('error_generating'));
+            this.closeModal();
+        }
+    },
+
+    /** Close modal */
+    closeModal() {
+        document.getElementById('report-modal')?.classList.add('hidden');
+    },
+
+    // ========== Profile Interpretation ==========
+
+    /** Load AI interpretation for user profile */
+    async loadProfileInterpretation() {
+        const container = document.getElementById('interpretation-container');
+        const card = document.getElementById('interpretation-card');
+
+        if (!container || !card) return;
+
+        // Show loading state
+        container.innerHTML = `
+            <div class="interpretation-loading">
+                <div class="spinner-small"></div>
+                <span>${this.t('analyzing')}</span>
+            </div>
+        `;
+
+        const result = await API.getProfileInterpretation();
+
+        if (result && result.interpretation) {
+            // Display interpretation
+            const paragraphs = result.interpretation.split('\n\n');
+            container.innerHTML = `
+                <div class="interpretation-text">
+                    ${paragraphs
+                        .filter(p => p.trim())
+                        .map(p => `<p>${this.escapeHtml(p)}</p>`)
+                        .join('')}
+                </div>
+            `;
+            TelegramApp.hapticFeedback('success');
+        } else {
+            // Show error/retry button
+            container.innerHTML = `
+                <p class="interpretation-error">${this.t('interpretation_error')}</p>
+                <button class="btn-interpretation" id="retry-interpretation">
+                    ${this.t('btn_retry')}
+                </button>
+            `;
+            document.getElementById('retry-interpretation')?.addEventListener('click', () => {
+                TelegramApp.hapticFeedback('light');
+                this.loadProfileInterpretation();
+            });
+        }
+    },
+
+    /** Escape HTML for safe display */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 };
 

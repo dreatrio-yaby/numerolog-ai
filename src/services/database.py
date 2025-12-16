@@ -546,6 +546,108 @@ class DatabaseService:
             }
         )
 
+    # Compatibility results storage
+
+    async def save_compatibility_result(
+        self,
+        telegram_id: int,
+        partner_date: date,
+        scores: dict,
+        ai_interpretation: Optional[str] = None,
+    ) -> str:
+        """Save compatibility calculation result. Returns result_id."""
+        result_id = str(uuid.uuid4())[:8]
+        self.reports_table.put_item(
+            Item={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"COMPAT#{result_id}",
+                "partner_date": partner_date.isoformat(),
+                "scores": scores,
+                "ai_interpretation": ai_interpretation,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        )
+        return result_id
+
+    async def get_compatibility_result(
+        self,
+        telegram_id: int,
+        result_id: str,
+    ) -> Optional[dict]:
+        """Get saved compatibility result."""
+        response = self.reports_table.get_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"COMPAT#{result_id}",
+            }
+        )
+        item = response.get("Item")
+        if item:
+            return {
+                "result_id": result_id,
+                "partner_date": item.get("partner_date"),
+                "scores": item.get("scores", {}),
+                "ai_interpretation": item.get("ai_interpretation"),
+                "created_at": item.get("created_at"),
+            }
+        return None
+
+    async def update_compatibility_interpretation(
+        self,
+        telegram_id: int,
+        result_id: str,
+        ai_interpretation: str,
+    ) -> None:
+        """Update AI interpretation for existing compatibility result."""
+        self.reports_table.update_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"COMPAT#{result_id}",
+            },
+            UpdateExpression="SET ai_interpretation = :interp",
+            ExpressionAttributeValues={":interp": ai_interpretation},
+        )
+
+    async def get_compatibility_history(
+        self,
+        telegram_id: int,
+        limit: int = 10,
+    ) -> list[dict]:
+        """Get user's compatibility check history."""
+        response = self.reports_table.query(
+            KeyConditionExpression=(
+                Key("PK").eq(f"USER#{telegram_id}") &
+                Key("SK").begins_with("COMPAT#")
+            ),
+        )
+
+        results = []
+        for item in response.get("Items", []):
+            result_id = item["SK"].replace("COMPAT#", "")
+            results.append({
+                "result_id": result_id,
+                "partner_date": item.get("partner_date"),
+                "overall_score": item.get("scores", {}).get("overall_score"),
+                "created_at": item.get("created_at"),
+            })
+
+        # Sort by created_at descending
+        results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return results[:limit]
+
+    async def delete_compatibility_result(
+        self,
+        telegram_id: int,
+        result_id: str,
+    ) -> None:
+        """Delete compatibility result."""
+        self.reports_table.delete_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"COMPAT#{result_id}",
+            }
+        )
+
     # Users with notifications enabled (for daily forecasts)
 
     async def get_users_for_notifications(self, hour: int) -> list[User]:
@@ -553,7 +655,9 @@ class DatabaseService:
         # This would require a GSI on notification_time
         # For MVP, we'll scan (not efficient but works for small user base)
         response = self.users_table.scan(
-            FilterExpression="notifications_enabled = :enabled AND begins_with(notification_time, :hour)",
+            FilterExpression=(
+                "notifications_enabled = :enabled AND begins_with(notification_time, :hour)"
+            ),
             ExpressionAttributeValues={
                 ":enabled": True,
                 ":hour": f"{hour:02d}:",

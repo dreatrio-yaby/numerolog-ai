@@ -3,7 +3,14 @@
     "allow": [
       "Bash(pytest:*)",
       "Bash(ruff check:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(xargs -I {} bash -c 'echo \"\"\"\"=== {} ===\"\"\"\" && grep \"\"\"\"^def\\|^async def\\|^class\"\"\"\" {} | head -30')",
+      "Bash(xargs -I {} bash -c 'echo \"\"\"\"=== {} ===\"\"\"\" && grep \"\"\"\"^def\\|^async def\\|^class\"\"\"\" {} | head -20')",
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat(reports): add premium web-based report viewing in Mini App\n\n- Add new report viewing page (report.html) with premium styling\n- Add GET /api/reports/{report_id} endpoint for fetching report content\n- Bot now sends \"Open Report\" button instead of plain text\n- Reports render with gradient headers, animated sections, and icons\n- Support deep links: startapp=report_full_portrait\n- Update Mini App to open purchased reports in new view\n- Add markdown parsing with marked.js library\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

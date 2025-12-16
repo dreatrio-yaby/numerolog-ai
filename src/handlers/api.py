@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import unquote
 
@@ -11,8 +12,9 @@ from aiogram.types import LabeledPrice
 
 from src.config import get_settings
 from src.models.user import Language
+from src.services.ai import ai_service
 from src.services.database import db
-from src.services.numerology import get_full_profile
+from src.services.numerology import calculate_compatibility, get_full_profile
 
 settings = get_settings()
 
@@ -445,6 +447,187 @@ async def handle_create_invoice(telegram_id: int, body: dict) -> dict:
     return cors_response(200, {"invoice_url": invoice_link})
 
 
+async def handle_get_compatibility_history(telegram_id: int) -> dict:
+    """Handle GET /api/compatibility - get compatibility check history."""
+    user = await db.get_user(telegram_id)
+    if not user:
+        return error_response(404, "User not found")
+
+    history = await db.get_compatibility_history(telegram_id)
+    return cors_response(200, {"compatibility": history})
+
+
+async def handle_get_compatibility_result(telegram_id: int, result_id: str) -> dict:
+    """Handle GET /api/compatibility/{result_id} - get specific result."""
+    user = await db.get_user(telegram_id)
+    if not user:
+        return error_response(404, "User not found")
+
+    result = await db.get_compatibility_result(telegram_id, result_id)
+    if not result:
+        return error_response(404, "Result not found")
+
+    return cors_response(200, result)
+
+
+async def handle_create_compatibility(telegram_id: int, body: dict) -> dict:
+    """Handle POST /api/compatibility - create new compatibility check from Mini App."""
+    user = await db.get_user(telegram_id)
+    if not user or not user.is_onboarded():
+        return error_response(400, "User not onboarded")
+
+    # Check limit for free users
+    if not user.is_premium() and not user.can_check_compatibility():
+        return error_response(403, "Limit reached")
+
+    partner_date_str = body.get("partner_date")
+    if not partner_date_str:
+        return error_response(400, "Missing partner_date")
+
+    partner_date = date.fromisoformat(partner_date_str)
+
+    # Increment counter
+    if not user.is_premium():
+        await db.increment_compatibility_this_week(user)
+
+    # Calculate compatibility
+    scores = calculate_compatibility(user.birth_date, partner_date)
+
+    # Save result
+    result_id = await db.save_compatibility_result(telegram_id, partner_date, scores)
+
+    return cors_response(200, {"result_id": result_id, "scores": scores})
+
+
+async def handle_compatibility_interpret(telegram_id: int, result_id: str) -> dict:
+    """Handle POST /api/compatibility/{result_id}/interpret - generate AI interpretation."""
+    user = await db.get_user(telegram_id)
+    if not user or not user.is_onboarded():
+        return error_response(400, "User not onboarded")
+
+    result = await db.get_compatibility_result(telegram_id, result_id)
+    if not result:
+        return error_response(404, "Result not found")
+
+    # Return cached interpretation if exists
+    if result.get("ai_interpretation"):
+        return cors_response(200, {"interpretation": result["ai_interpretation"]})
+
+    # Generate new interpretation
+    profile = get_full_profile(user.name, user.birth_date)
+    partner_date = date.fromisoformat(result["partner_date"])
+
+    interpretation = await ai_service.generate_compatibility_analysis(
+        user, profile, result["scores"], partner_date
+    )
+
+    # Cache interpretation
+    await db.update_compatibility_interpretation(telegram_id, result_id, interpretation)
+
+    return cors_response(200, {"interpretation": interpretation})
+
+
+async def handle_delete_compatibility(telegram_id: int, result_id: str) -> dict:
+    """Handle DELETE /api/compatibility/{result_id}."""
+    user = await db.get_user(telegram_id)
+    if not user:
+        return error_response(404, "User not found")
+
+    await db.delete_compatibility_result(telegram_id, result_id)
+    return cors_response(200, {"success": True})
+
+
+async def handle_generate_report(telegram_id: int, report_id: str, body: dict) -> dict:
+    """Handle POST /api/reports/{report_id}/generate - generate report from Mini App."""
+    user = await db.get_user(telegram_id)
+    if not user or not user.is_onboarded():
+        return error_response(400, "User not onboarded")
+
+    # Find report metadata
+    report_meta = next((r for r in AVAILABLE_REPORTS if r["id"] == report_id), None)
+    if not report_meta:
+        return error_response(404, "Unknown report type")
+
+    # Check access
+    is_pro = user.subscription_type.value == "pro" and user.is_premium()
+    has_report = report_id in user.purchased_reports
+
+    if not is_pro and not has_report:
+        return error_response(403, "Report not purchased")
+
+    context = body.get("context", {})
+
+    # Check if already generating
+    if await db.is_report_generating(telegram_id, report_id):
+        return cors_response(200, {"status": "generating"})
+
+    await db.set_report_generating(telegram_id, report_id)
+
+    # Get profile
+    profile = get_full_profile(user.name, user.birth_date)
+
+    # Generate based on type
+    content = None
+    if report_id == "full_portrait":
+        content = await ai_service.generate_full_portrait_report(user, profile)
+    elif report_id == "financial_code":
+        content = await ai_service.generate_financial_code_report(user, profile)
+    elif report_id == "year_forecast":
+        year = context.get("year", datetime.now().year)
+        content = await ai_service.generate_year_forecast_report(user, profile, year)
+    elif report_id == "date_calendar":
+        month = context.get("month", datetime.now().month)
+        year = context.get("year", datetime.now().year)
+        content = await ai_service.generate_date_calendar_report(user, profile, month, year)
+    elif report_id == "name_selection":
+        content = await ai_service.generate_name_selection_report(user, profile, context)
+    elif report_id == "compatibility_pro":
+        content = await ai_service.generate_compatibility_pro_report(user, profile, context)
+    else:
+        await db.clear_report_generating(telegram_id, report_id)
+        return error_response(400, "Unknown report type")
+
+    # Save report
+    is_multi = report_meta.get("multi_instance", False)
+    instance_id = None
+
+    if is_multi:
+        instance_id = await db.save_report_instance(telegram_id, report_id, content, context)
+    else:
+        await db.save_report(telegram_id, report_id, content)
+
+    # Mark as purchased if not already
+    if report_id not in user.purchased_reports:
+        await db.add_purchased_report(user, report_id)
+
+    await db.clear_report_generating(telegram_id, report_id)
+
+    return cors_response(
+        200, {"status": "completed", "instance_id": instance_id, "content": content}
+    )
+
+
+async def handle_get_profile_interpretation(telegram_id: int) -> dict:
+    """Handle GET /api/user/interpretation - get or generate profile AI interpretation."""
+    user = await db.get_user(telegram_id)
+    if not user or not user.is_onboarded():
+        return error_response(400, "User not onboarded")
+
+    # Check if interpretation is cached in reports table
+    cached = await db.get_report(telegram_id, "profile_interpretation")
+    if cached:
+        return cors_response(200, {"interpretation": cached})
+
+    # Generate new interpretation
+    profile = get_full_profile(user.name, user.birth_date)
+    interpretation = await ai_service.generate_profile_interpretation(user, profile)
+
+    # Cache it
+    await db.save_report(telegram_id, "profile_interpretation", interpretation)
+
+    return cors_response(200, {"interpretation": interpretation})
+
+
 async def api_handler(event: dict) -> dict:
     """Main API handler for Mini App requests."""
     # Handle OPTIONS for CORS preflight
@@ -481,14 +664,39 @@ async def api_handler(event: dict) -> dict:
         return await handle_get_user(telegram_id)
     elif path.endswith("/api/user/settings") and method == "PUT":
         return await handle_update_settings(telegram_id, body)
+    elif path.endswith("/api/user/interpretation") and method == "GET":
+        return await handle_get_profile_interpretation(telegram_id)
     elif path.endswith("/api/payments") and method == "GET":
         return await handle_get_payments(telegram_id)
+    elif path.endswith("/api/compatibility") and method == "GET":
+        return await handle_get_compatibility_history(telegram_id)
+    elif path.endswith("/api/compatibility") and method == "POST":
+        return await handle_create_compatibility(telegram_id, body)
+    elif "/api/compatibility/" in path:
+        # Parse path: /api/compatibility/{result_id} or /api/compatibility/{result_id}/interpret
+        path_after = path.split("/api/compatibility/")[-1]
+        if path_after.endswith("/interpret") and method == "POST":
+            result_id = path_after.replace("/interpret", "")
+            return await handle_compatibility_interpret(telegram_id, result_id)
+        else:
+            result_id = path_after.split("/")[0]
+            if method == "GET":
+                return await handle_get_compatibility_result(telegram_id, result_id)
+            elif method == "DELETE":
+                return await handle_delete_compatibility(telegram_id, result_id)
+            else:
+                return error_response(405, "Method not allowed")
     elif path.endswith("/api/reports") and method == "GET":
         return await handle_get_reports(telegram_id)
     elif "/api/reports/" in path:
-        # Parse path: /api/reports/{report_id} or /api/reports/{report_id}/{instance_id}
+        # Parse: /api/reports/{id}, /api/reports/{id}/{instance}, /api/reports/{id}/generate
         path_parts = path.split("/api/reports/")[-1].split("/")
         report_id = path_parts[0] if path_parts else None
+
+        # Check for /generate endpoint
+        if len(path_parts) > 1 and path_parts[1] == "generate" and method == "POST":
+            return await handle_generate_report(telegram_id, report_id, body)
+
         instance_id = path_parts[1] if len(path_parts) > 1 and path_parts[1] else None
 
         if method == "GET":
