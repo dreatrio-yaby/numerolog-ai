@@ -32,6 +32,21 @@ WEBAPP_URL = "https://dreatrio-yaby.github.io/numerolog-ai/"
 router = Router()
 
 
+def get_report_view_keyboard(report_id: str, lang: str) -> InlineKeyboardMarkup:
+    """Create inline keyboard with button to view report in Mini App."""
+    btn_text = "✨ Открыть отчёт" if lang == "ru" else "✨ View Report"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=btn_text,
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}report.html?id={report_id}"),
+                )
+            ]
+        ]
+    )
+
+
 # FSM States
 class OnboardingStates(StatesGroup):
     """States for user onboarding."""
@@ -658,30 +673,19 @@ async def process_successful_payment(message: Message):
         # Delete thinking message
         await thinking_msg.delete()
 
-        # Send report title
-        report_titles = {
-            "full_portrait": "📜 ПОЛНЫЙ ПОРТРЕТ" if lang == "ru" else "📜 FULL PORTRAIT",
-            "financial_code": "💰 ФИНАНСОВЫЙ КОД" if lang == "ru" else "💰 FINANCIAL CODE",
-            "date_calendar": "📅 КАЛЕНДАРЬ ДАТ" if lang == "ru" else "📅 DATE CALENDAR",
-            "year_forecast": "🗓️ ПРОГНОЗ НА ГОД" if lang == "ru" else "🗓️ YEAR FORECAST",
-            "name_selection": "📝 ПОДБОР ИМЕНИ" if lang == "ru" else "📝 NAME SELECTION",
-            "compatibility_pro": "💑 СОВМЕСТИМОСТЬ PRO" if lang == "ru" else "💑 COMPATIBILITY PRO",
-        }
-        title = report_titles.get(report_id, "📜 ОТЧЁТ")
-        await message.answer(f"*{title}*", parse_mode="Markdown")
-
-        # Send report in parts if needed
-        parts = split_message(content, 4000)
-        for part in parts:
-            await message.answer(part, parse_mode="Markdown")
-
-        # Send completion message
+        # Send button to view report in Mini App
+        report_name = REPORT_INFO.get(report_id, {})
+        title = report_name.get("name_ru" if lang == "ru" else "name_en", "Отчёт")
         done_text = (
-            "✨ Отчёт сохранён в твоём профиле!"
+            f"✨ *{title}* готов!\n\nНажми кнопку ниже, чтобы открыть отчёт."
             if lang == "ru"
-            else "✨ Report saved to your profile!"
+            else f"✨ *{title}* is ready!\n\nTap the button below to view your report."
         )
-        await message.answer(done_text, reply_markup=get_main_keyboard(lang))
+        await message.answer(
+            done_text,
+            parse_mode="Markdown",
+            reply_markup=get_report_view_keyboard(report_id, lang),
+        )
         return
     else:
         return
@@ -755,15 +759,21 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
         await message.answer("Unknown report")
         return
 
-    # 1. Already purchased - show existing report
+    # 1. Already purchased - show button to view in Mini App
     if has_report:
         existing = await db.get_report(telegram_id, report_id)
         if existing:
             title = info["name_ru"] if lang == "ru" else info["name_en"]
-            await message.answer(f"*📜 {title}*", parse_mode="Markdown")
-            parts = split_message(existing, 4000)
-            for part in parts:
-                await message.answer(part, parse_mode="Markdown")
+            text = (
+                f"📜 *{title}*\n\nТвой отчёт готов к просмотру."
+                if lang == "ru"
+                else f"📜 *{title}*\n\nYour report is ready to view."
+            )
+            await message.answer(
+                text,
+                parse_mode="Markdown",
+                reply_markup=get_report_view_keyboard(report_id, lang),
+            )
             return
 
     # 2. PRO + no input needed - generate directly
@@ -796,11 +806,18 @@ async def handle_report_request(message: Message, state: FSMContext, report_id: 
         await db.clear_report_generating(telegram_id, report_id)
         await thinking_msg.delete()
 
+        # Send button to view report in Mini App
         title = info["name_ru"] if lang == "ru" else info["name_en"]
-        await message.answer(f"*📜 {title}*", parse_mode="Markdown")
-        parts = split_message(content, 4000)
-        for part in parts:
-            await message.answer(part, parse_mode="Markdown")
+        done_text = (
+            f"✨ *{title}* готов!\n\nНажми кнопку ниже, чтобы открыть отчёт."
+            if lang == "ru"
+            else f"✨ *{title}* is ready!\n\nTap the button below to view your report."
+        )
+        await message.answer(
+            done_text,
+            parse_mode="Markdown",
+            reply_markup=get_report_view_keyboard(report_id, lang),
+        )
         return
 
     # 3. Reports requiring input - start FSM
@@ -1014,11 +1031,18 @@ async def finalize_name_selection(
         await db.clear_report_generating(telegram_id, "name_selection")
         await thinking_msg.delete()
 
-        title = "📝 ПОДБОР ИМЕНИ" if lang == "ru" else "📝 NAME SELECTION"
-        await callback.message.answer(f"*{title}*", parse_mode="Markdown")
-        parts = split_message(content, 4000)
-        for part in parts:
-            await callback.message.answer(part, parse_mode="Markdown")
+        # Send button to view report in Mini App
+        title = "Подбор имени" if lang == "ru" else "Name Selection"
+        done_text = (
+            f"✨ *{title}* готов!\n\nНажми кнопку ниже, чтобы открыть отчёт."
+            if lang == "ru"
+            else f"✨ *{title}* is ready!\n\nTap the button below to view your report."
+        )
+        await callback.message.answer(
+            done_text,
+            parse_mode="Markdown",
+            reply_markup=get_report_view_keyboard("name_selection", lang),
+        )
     else:
         # Send invoice
         info = REPORT_INFO["name_selection"]
@@ -1111,11 +1135,18 @@ async def process_partner_birthdate(message: Message, state: FSMContext, bot: Bo
         await db.clear_report_generating(telegram_id, "compatibility_pro")
         await thinking_msg.delete()
 
-        title = "💑 СОВМЕСТИМОСТЬ PRO" if lang == "ru" else "💑 COMPATIBILITY PRO"
-        await message.answer(f"*{title}*", parse_mode="Markdown")
-        parts = split_message(content, 4000)
-        for part in parts:
-            await message.answer(part, parse_mode="Markdown")
+        # Send button to view report in Mini App
+        title = "Совместимость PRO" if lang == "ru" else "Compatibility PRO"
+        done_text = (
+            f"✨ *{title}* готов!\n\nНажми кнопку ниже, чтобы открыть отчёт."
+            if lang == "ru"
+            else f"✨ *{title}* is ready!\n\nTap the button below to view your report."
+        )
+        await message.answer(
+            done_text,
+            parse_mode="Markdown",
+            reply_markup=get_report_view_keyboard("compatibility_pro", lang),
+        )
     else:
         # Send invoice
         info = REPORT_INFO["compatibility_pro"]

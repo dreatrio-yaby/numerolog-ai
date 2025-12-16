@@ -280,7 +280,7 @@ class DatabaseService:
         telegram_id: int,
         report_type: str,
     ) -> Optional[str]:
-        """Get saved report."""
+        """Get saved report content."""
         response = self.reports_table.get_item(
             Key={
                 "PK": f"USER#{telegram_id}",
@@ -290,6 +290,26 @@ class DatabaseService:
         item = response.get("Item")
         if item:
             return item["content"]
+        return None
+
+    async def get_report_with_metadata(
+        self,
+        telegram_id: int,
+        report_type: str,
+    ) -> Optional[dict]:
+        """Get saved report with metadata (content, created_at)."""
+        response = self.reports_table.get_item(
+            Key={
+                "PK": f"USER#{telegram_id}",
+                "SK": f"REPORT#{report_type}",
+            }
+        )
+        item = response.get("Item")
+        if item:
+            return {
+                "content": item["content"],
+                "created_at": item.get("created_at"),
+            }
         return None
 
     # Pending report data (for reports that need additional input before purchase)

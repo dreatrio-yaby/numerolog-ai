@@ -286,6 +286,42 @@ async def handle_get_reports(telegram_id: int) -> dict:
     return cors_response(200, {"reports": reports})
 
 
+async def handle_get_report_content(telegram_id: int, report_id: str) -> dict:
+    """Handle GET /api/reports/{report_id} - get full report content."""
+    user = await db.get_user(telegram_id)
+    if not user:
+        return error_response(404, "User not found")
+
+    # Find report metadata
+    report_meta = next((r for r in AVAILABLE_REPORTS if r["id"] == report_id), None)
+    if not report_meta:
+        return error_response(404, "Unknown report type")
+
+    # Check if user has access to this report
+    is_pro = user.subscription_type.value == "pro" and user.is_premium()
+    has_access = report_id in user.purchased_reports or is_pro
+
+    if not has_access:
+        return error_response(403, "Report not purchased")
+
+    # Get report content from database
+    report_data = await db.get_report_with_metadata(telegram_id, report_id)
+    if not report_data:
+        return error_response(404, "Report not generated yet")
+
+    # Return report with metadata
+    return cors_response(
+        200,
+        {
+            "id": report_id,
+            "title_ru": report_meta["name_ru"],
+            "title_en": report_meta["name_en"],
+            "content": report_data["content"],
+            "generated_at": report_data["created_at"],
+        },
+    )
+
+
 async def handle_create_invoice(telegram_id: int, body: dict) -> dict:
     """Handle POST /api/invoice - create invoice link for purchase."""
     user = await db.get_user(telegram_id)
@@ -378,6 +414,10 @@ async def api_handler(event: dict) -> dict:
         return await handle_get_payments(telegram_id)
     elif path.endswith("/api/reports") and method == "GET":
         return await handle_get_reports(telegram_id)
+    elif "/api/reports/" in path and method == "GET":
+        # GET /api/reports/{report_id} - get specific report content
+        report_id = path.split("/api/reports/")[-1].split("/")[0]
+        return await handle_get_report_content(telegram_id, report_id)
     elif path.endswith("/api/invoice") and method == "POST":
         return await handle_create_invoice(telegram_id, body)
     else:

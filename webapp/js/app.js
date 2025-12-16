@@ -23,6 +23,14 @@ const App = {
             return;
         }
 
+        // Check for deep link to report page
+        const startParam = TelegramApp.getStartParam();
+        if (startParam && startParam.startsWith('report_')) {
+            // Redirect to report page
+            window.location.href = `report.html?id=${startParam.replace('report_', '')}`;
+            return;
+        }
+
         // Load translations
         await this.loadTranslations();
 
@@ -344,19 +352,29 @@ const App = {
                         ${requiresInput && !isAccessible ? `<span class="report-note">${this.t('report_requires_input')}</span>` : ''}
                         ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
                     </div>
-                    <button class="report-btn" data-report="${r.id}">
+                    <button class="report-btn" data-report="${r.id}" data-accessible="${isAccessible}">
                         ${btnText}
                     </button>
                 </div>
             `;
         }).join('');
 
-        // Add click handlers - all reports redirect to bot
+        // Add click handlers
         list.querySelectorAll('.report-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const reportId = btn.getAttribute('data-report');
-                TelegramApp.openTelegramLink(`https://t.me/NumeroChatBot?start=report_${reportId}`);
-                TelegramApp.close();
+                const isAccessible = btn.getAttribute('data-accessible') === 'true';
+
+                TelegramApp.hapticFeedback('light');
+
+                if (isAccessible) {
+                    // Open report in premium view
+                    window.location.href = `report.html?id=${reportId}`;
+                } else {
+                    // Redirect to bot for purchase
+                    TelegramApp.openTelegramLink(`https://t.me/NumeroChatBot?start=report_${reportId}`);
+                    TelegramApp.close();
+                }
             });
         });
     },

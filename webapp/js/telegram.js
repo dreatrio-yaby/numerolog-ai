@@ -35,6 +35,11 @@ const TelegramApp = {
         return this.tg?.initDataUnsafe?.user || null;
     },
 
+    /** Get start_param from deep link (e.g., report_full_portrait) */
+    getStartParam() {
+        return this.tg?.initDataUnsafe?.start_param || null;
+    },
+
     /** Get user's language code */
     getLanguage() {
         const user = this.getUser();

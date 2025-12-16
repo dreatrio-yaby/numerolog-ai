@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Numerolog Report</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/report.css">
+</head>
+<body>
+    <div id="report-app">
+        <!-- Loading state -->
+        <div id="report-loading" class="report-loading">
+            <div class="spinner"></div>
+            <p id="loading-text">Загружаем отчёт...</p>
+        </div>
+
+        <!-- Error state -->
+        <div id="report-error" class="report-error" style="display: none;">
+            <div class="error-icon">⚠️</div>
+            <p id="error-text">Не удалось загрузить отчёт</p>
+            <button id="back-btn" class="back-button">Назад</button>
+        </div>
+
+        <!-- Report content -->
+        <div id="report-content" class="report-content" style="display: none;">
+            <!-- Header -->
+            <header class="report-header">
+                <button id="header-back-btn" class="header-back-btn" aria-label="Back">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <div class="report-header-content">
+                    <div class="report-icon" id="report-icon">📜</div>
+                    <h1 class="report-title" id="report-title">Отчёт</h1>
+                    <p class="report-subtitle" id="report-subtitle">Персональный анализ</p>
+                </div>
+            </header>
+
+            <!-- Main content -->
+            <main class="report-body" id="report-body">
+                <!-- Sections will be rendered here -->
+            </main>
+
+            <!-- Footer -->
+            <footer class="report-footer">
+                <div class="footer-logo">✨ Numerolog AI</div>
+                <p class="footer-date" id="footer-date"></p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="js/telegram.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/report.js"></script>
+</body>
+</html>

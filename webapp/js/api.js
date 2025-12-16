@@ -57,6 +57,11 @@ const API = {
         return this.request('/reports', { method: 'GET' });
     },
 
+    /** GET /api/reports/{reportId} - Get report content */
+    async getReportContent(reportId) {
+        return this.request(`/reports/${reportId}`, { method: 'GET' });
+    },
+
     /** POST /api/invoice - Create invoice for purchase */
     async createInvoice(type) {
         return this.request('/invoice', {
