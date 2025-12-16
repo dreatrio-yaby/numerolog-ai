@@ -272,6 +272,12 @@ async def handle_get_reports(telegram_id: int) -> dict:
         elif is_pro:
             status = "included_in_pro"
 
+        # Check if report content exists in database
+        is_generated = False
+        if status in ("purchased", "included_in_pro"):
+            report_content = await db.get_report(telegram_id, report["id"])
+            is_generated = report_content is not None
+
         reports.append(
             {
                 "id": report["id"],
@@ -280,6 +286,7 @@ async def handle_get_reports(telegram_id: int) -> dict:
                 "price": report["price"],
                 "status": status,
                 "requires_input": report["requires_input"],
+                "is_generated": is_generated,
             }
         )
 

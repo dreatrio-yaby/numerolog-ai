@@ -330,6 +330,7 @@ const App = {
             const desc = this.t(`report_desc_${r.id}`) || '';
             const requiresInput = r.requires_input !== null;
             const isAccessible = r.status === 'purchased' || r.status === 'included_in_pro';
+            const isGenerated = r.is_generated === true;
             let statusText = '';
             let statusClass = '';
 
@@ -341,8 +342,15 @@ const App = {
                 statusClass = 'included';
             }
 
-            // Button text: "Открыть" for accessible, price for others
-            const btnText = isAccessible ? this.t('btn_open') : `${r.price}★`;
+            // Button text based on status and generation state
+            let btnText;
+            if (isAccessible && isGenerated) {
+                btnText = this.t('btn_open');
+            } else if (isAccessible && !isGenerated) {
+                btnText = this.t('btn_create');
+            } else {
+                btnText = `${r.price}★`;
+            }
 
             return `
                 <div class="report-item">
@@ -352,7 +360,7 @@ const App = {
                         ${requiresInput && !isAccessible ? `<span class="report-note">${this.t('report_requires_input')}</span>` : ''}
                         ${statusText ? `<span class="report-status ${statusClass}">${statusText}</span>` : ''}
                     </div>
-                    <button class="report-btn" data-report="${r.id}" data-accessible="${isAccessible}">
+                    <button class="report-btn" data-report="${r.id}" data-accessible="${isAccessible}" data-generated="${isGenerated}">
                         ${btnText}
                     </button>
                 </div>
@@ -364,14 +372,15 @@ const App = {
             btn.addEventListener('click', () => {
                 const reportId = btn.getAttribute('data-report');
                 const isAccessible = btn.getAttribute('data-accessible') === 'true';
+                const isGenerated = btn.getAttribute('data-generated') === 'true';
 
                 TelegramApp.hapticFeedback('light');
 
-                if (isAccessible) {
+                if (isAccessible && isGenerated) {
                     // Open report in premium view
                     window.location.href = `report.html?id=${reportId}`;
                 } else {
-                    // Redirect to bot for purchase
+                    // Redirect to bot for purchase or generation
                     TelegramApp.openTelegramLink(`https://t.me/NumeroChatBot?start=report_${reportId}`);
                     TelegramApp.close();
                 }
